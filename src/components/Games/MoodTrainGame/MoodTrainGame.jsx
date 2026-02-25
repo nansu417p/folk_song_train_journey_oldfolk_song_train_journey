@@ -1,143 +1,17 @@
-import React, { useRef, useState, Suspense, useEffect } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { 
-  OrbitControls, 
-  Text, 
-  Float, 
-  RoundedBox, 
-  Environment, 
-  ContactShadows, 
-  useFBX, // 改用 useFBX
-  Html,
-  useProgress
-} from '@react-three/drei';
-import * as THREE from 'three';
+import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
-// --- 0. 載入畫面 ---
-function Loader() {
-  const { progress } = useProgress();
-  return (
-    <Html center>
-      <div className="text-white text-xl font-bold bg-black/50 px-4 py-2 rounded">
-        載入模型中: {progress.toFixed(0)} %
-      </div>
-    </Html>
-  );
-}
-
-// --- 1. 火車模型 (使用 FBX) ---
-const ImportedTrain = () => {
-  // 讀取 FBX 檔案
-  // 如果貼圖(png)在同一個資料夾，通常會自動載入
-  const fbx = useFBX('/models/electrictrain.fbx');
-
-  return (
-    <primitive 
-      object={fbx} 
-      // ★★★ FBX 縮放關鍵 ★★★
-      // FBX 單位通常是公分，WebGL 是公尺，所以通常要縮小 100 倍 (0.01)
-      // 如果還是太大/太小，請調整這裡
-      scale={0.01} 
-      position={[0, -2.5, 0]} 
-      // 根據模型原始方向旋轉，這裡預設轉 180 度
-      rotation={[0, Math.PI, 0]} 
-    />
-  );
-};
-
-// --- 2. 動態風景 (隨心情改變) ---
-const MovingLandscape = ({ mood }) => {
-  const mesh = useRef();
-  
-  // 根據心情切換風景圖
-  // happy: 晴朗田野 (Unsplash)
-  // sad/neutral: 雨天窗景 (Unsplash)
-  const textureUrl = mood === 'happy' 
-    ? 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=2000&auto=format&fit=crop' 
-    : 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=2000&auto=format&fit=crop'; 
-    
-  const texture = useLoader(THREE.TextureLoader, textureUrl);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.repeat.set(4, 1); 
-
-  useFrame((state, delta) => {
-    if (mesh.current) {
-      // 讓風景向後跑，模擬火車向前開
-      // 開心時跑快一點 (0.08)，悲傷時慢一點 (0.02)
-      texture.offset.x += delta * (mood === 'happy' ? 0.08 : 0.02); 
-    }
-  });
-
-  return (
-    <group position={[0, 0, 0]}>
-      <mesh ref={mesh}>
-         {/* 巨大的圓筒包圍整個車廂 */}
-         <cylinderGeometry args={[25, 25, 20, 32, 1, true]} />
-         {/* 根據心情調整亮度 */}
-         <meshBasicMaterial 
-            map={texture} 
-            side={THREE.BackSide} 
-            toneMapped={false} 
-            color={mood === 'happy' ? '#ffffff' : '#888888'} 
-         /> 
-      </mesh>
-    </group>
-  );
-};
-
-// --- 3. 心情收音機 (互動按鈕) ---
-const MoodRadio = ({ onClick, status }) => {
-  const [hovered, setHover] = useState(false);
-
-  return (
-    <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
-      {/* 調整位置放在桌上，請依據你的火車模型桌子位置微調 */}
-      <group 
-        position={[0.5, -1, 1.5]} 
-        rotation={[0, -0.5, 0]}
-        onPointerOver={() => setHover(true)}
-        onPointerOut={() => setHover(false)}
-        onClick={onClick}
-        scale={0.8}
-      >
-         {/* 機身 */}
-         <RoundedBox args={[1.2, 0.6, 0.4]} radius={0.05} smoothness={4}>
-           <meshStandardMaterial 
-              color={status === 'scanning' ? "#FFEB3B" : (hovered ? "#FF5252" : "#BF360C")} 
-              emissive={status === 'scanning' ? "#FFFF00" : (hovered ? "#FF8A80" : "#000")}
-              emissiveIntensity={status === 'scanning' ? 0.5 : 0.1}
-           />
-         </RoundedBox>
-         {/* 旋鈕 */}
-         <mesh position={[0.4, 0.1, 0.2]} rotation={[Math.PI/2, 0, 0]}>
-           <cylinderGeometry args={[0.1, 0.1, 0.1]} />
-           <meshStandardMaterial color="#EEE" />
-         </mesh>
-         {/* 喇叭 */}
-         <mesh position={[-0.2, 0, 0.21]}>
-           <circleGeometry args={[0.2, 32]} />
-           <meshStandardMaterial color="#111" />
-         </mesh>
-         
-         <Text position={[0, 0.5, 0]} fontSize={0.15} color="white" anchorX="center" anchorY="middle" outlineWidth={0.01} outlineColor="black">
-           {status === 'scanning' ? "偵測中..." : "點擊讀取心情"}
-         </Text>
-      </group>
-    </Float>
-  );
-};
-
-// --- 4. 主場景 (整合 Face API) ---
-const MoodTrainGame = ({ onBack }) => {
-  const [mood, setMood] = useState('neutral'); // neutral, happy, sad
-  const [scanStatus, setScanStatus] = useState('idle'); // idle, scanning, done
-  
+const MoodTrainGame = ({ onBack, onMoodDetected }) => {
   const webcamRef = useRef(null);
   const [faceLandmarker, setFaceLandmarker] = useState(null);
-
-  // A. 初始化 AI 模型
+  
+  // 狀態管理：'intro' (歡迎), 'scanning' (掃描中), 'result' (出票)
+  const [step, setStep] = useState('intro');
+  const [moodResult, setMoodResult] = useState(null); // 'happy', 'sad', 'neutral'
+  const [captureImg, setCaptureImg] = useState(null); // 拍下的照片
+  
+  // 初始化 AI 模型
   useEffect(() => {
     const init = async () => {
       const vision = await FilesetResolver.forVisionTasks(
@@ -150,26 +24,24 @@ const MoodTrainGame = ({ onBack }) => {
         },
         runningMode: "VIDEO",
         numFaces: 1,
-        outputFaceBlendshapes: true // 重要：這會回傳表情數值
+        outputFaceBlendshapes: true 
       });
       setFaceLandmarker(landmarker);
     };
     init();
   }, []);
 
-  // B. 開始掃描心情
-  const startMoodScan = () => {
+  const startScan = () => {
     if (!faceLandmarker || !webcamRef.current?.video) {
-        alert("AI 正在暖機中，請稍候...");
+        alert("驗票閘門系統啟動中，請稍候...");
         return;
     }
     
-    setScanStatus('scanning');
+    setStep('scanning');
 
     let scanCount = 0;
     let smileScore = 0;
     
-    // 每 100ms 偵測一次，持續 3 秒
     const interval = setInterval(() => {
        const video = webcamRef.current.video;
        if(video.readyState === 4) {
@@ -178,7 +50,6 @@ const MoodTrainGame = ({ onBack }) => {
            
            if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
                const shapes = result.faceBlendshapes[0].categories;
-               // 取得微笑指數
                const smileL = shapes.find(s => s.categoryName === 'mouthSmileLeft')?.score || 0;
                const smileR = shapes.find(s => s.categoryName === 'mouthSmileRight')?.score || 0;
                const currentSmile = (smileL + smileR) / 2;
@@ -189,99 +60,152 @@ const MoodTrainGame = ({ onBack }) => {
        }
     }, 100);
 
-    // 3秒後結算
+    // 3秒後結算並拍照
     setTimeout(() => {
         clearInterval(interval);
         const avgSmile = scanCount > 0 ? smileScore / scanCount : 0;
         
-        // 判斷：微笑超過 0.4 算開心，否則算平靜/悲傷
-        const newMood = avgSmile > 0.4 ? 'happy' : 'sad';
-        setMood(newMood);
-        setScanStatus('done');
+        let finalMood = 'neutral';
+        if (avgSmile > 0.4) finalMood = 'happy';
+        else if (avgSmile < 0.1) finalMood = 'sad';
+
+        const imageSrc = webcamRef.current.getScreenshot();
         
-        setTimeout(() => setScanStatus('idle'), 3000);
+        setCaptureImg(imageSrc);
+        setMoodResult(finalMood);
+        setStep('result');
+        
+        // 呼叫 App.jsx 觸發全域特效
+        onMoodDetected(finalMood);
     }, 3000);
   };
 
+  // 車長預設對話
+  const getConductorMessage = () => {
+    switch(moodResult) {
+      case 'happy': return "看您面帶微笑，心情想必十分愉悅！這趟旅程將為您披上暖陽，願您有個美好的一天。";
+      case 'sad': return "看您眉頭微鎖，似乎有些心事。沒關係的，讓窗外的雨水洗滌疲憊，聽首溫柔的歌吧。";
+      default: return "旅途的風景總是平靜而悠長。為您印製了專屬乘車券，請慢慢享受這趟民歌之旅。";
+    }
+  };
+
   return (
-    <div className="w-full h-full relative bg-black">
+    <div className="relative w-full h-full bg-transparent flex items-center justify-center p-8">
       
-      {/* 隱藏的 Webcam (AI 之眼) */}
-      <Webcam
-        ref={webcamRef}
-        audio={false}
-        width={640}
-        height={480}
-        className="absolute opacity-0 pointer-events-none"
-      />
+      {/* 統一的返回按鈕 */}
+      <button 
+        onClick={onBack} 
+        className="absolute top-6 left-6 z-50 px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border border-gray-300 hover:bg-gray-200 hover:-translate-y-1 transition-all duration-300 tracking-wide"
+      >
+        ← 返回火車
+      </button>
 
-      {/* UI 介面 */}
-      <div className="absolute top-0 left-0 w-full p-6 z-50 flex justify-between items-start pointer-events-none">
-        <button 
-          onClick={onBack}
-          className="px-6 py-2 bg-white/10 backdrop-blur text-white border border-white/30 rounded-full hover:bg-white hover:text-black transition font-bold pointer-events-auto"
-        >
-          ← 離開座位
-        </button>
-        <div className="text-right text-white/90 drop-shadow-md">
-           <h2 className="text-2xl font-bold">心情列車</h2>
-           <p className="text-sm">
-             車廂氛圍：
-             {mood === 'neutral' && "☁️ 陰天 (預設)"}
-             {mood === 'happy' && "☀️ 晴朗 (偵測到微笑)"}
-             {mood === 'sad' && "🌧️ 雨天 (偵測到平靜)"}
-           </p>
-        </div>
-      </div>
+      <div className="flex flex-col md:flex-row gap-8 w-full max-w-5xl items-center justify-center">
+        
+        {/* 左側：鏡頭與車長對話區 */}
+        <div className="flex flex-col gap-6 w-full md:w-1/2">
+          
+          <div className="bg-[#F5F5F5] p-4 rounded-lg shadow-xl border border-gray-300 flex flex-col items-center relative overflow-hidden">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 tracking-widest border-b-2 border-red-500 pb-2">剪票口監視器</h2>
+            
+            <div className="w-full aspect-video bg-gray-200 rounded overflow-hidden relative border-4 border-gray-300">
+              <Webcam
+                ref={webcamRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                className={`w-full h-full object-cover ${step === 'result' ? 'opacity-0' : 'opacity-100'}`}
+                mirrored={true}
+              />
+              
+              {/* 掃描框 */}
+              {step === 'scanning' && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-48 h-64 border-4 border-yellow-400 border-dashed rounded animate-pulse"></div>
+                </div>
+              )}
 
-      {/* 掃描中的提示 */}
-      {scanStatus === 'scanning' && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-             <div className="bg-black/60 backdrop-blur-md p-8 rounded-2xl border border-yellow-400/50 text-center animate-pulse">
-                <p className="text-3xl text-yellow-300 font-bold mb-2">正在讀取表情...</p>
-                <p className="text-white/80">請對著鏡頭微笑，或保持平靜</p>
-             </div>
+              {/* 拍照定格 */}
+              {step === 'result' && captureImg && (
+                <img src={captureImg} className="absolute inset-0 w-full h-full object-cover grayscale" alt="captured" />
+              )}
+            </div>
+
+            {step === 'intro' && (
+              <button onClick={startScan} className="mt-6 px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-500 hover:-translate-y-1 transition-all tracking-widest">
+                📷 讀取心情並製票
+              </button>
+            )}
+
+            {step === 'scanning' && (
+              <p className="mt-6 text-gray-600 font-bold animate-pulse tracking-widest">正在分析面部表情...</p>
+            )}
           </div>
-      )}
 
-      {/* 3D 場景 */}
-      <Canvas camera={{ position: [0, 1, 4], fov: 50 }} shadows>
-        <Suspense fallback={<Loader />}>
+          {/* 車長對話框 */}
+          <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-gray-800 relative">
+            <div className="absolute -top-4 -left-4 w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-white text-xl shadow-md">👨‍✈️</div>
+            <h3 className="font-bold text-gray-800 mb-2 tracking-widest">車長廣播：</h3>
+            <p className="text-gray-600 leading-relaxed">
+              {step === 'intro' && "各位旅客您好，請看向監視器，為您印製帶有今日心情的專屬乘車券。"}
+              {step === 'scanning' && "資料讀取中，請保持自然..."}
+              {step === 'result' && getConductorMessage()}
+            </p>
+          </div>
+
+        </div>
+
+        {/* 右側：實體車票 UI (結果出現才顯示) */}
+        {step === 'result' && (
+          <div className="w-full md:w-1/3 flex flex-col items-center animate-fade-in-up">
+            <div className="bg-[#EAEAEA] w-[300px] rounded-sm shadow-2xl flex flex-col relative overflow-hidden border border-gray-400 p-2">
+              
+              {/* 車票打孔設計 */}
+              <div className="absolute -left-3 top-20 w-6 h-6 bg-transparent rounded-full border-r border-gray-400 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]"></div>
+              <div className="absolute -right-3 top-20 w-6 h-6 bg-transparent rounded-full border-l border-gray-400 shadow-[inset_2px_0_4px_rgba(0,0,0,0.1)]"></div>
+              
+              <div className="border-[3px] border-gray-800 p-4 h-full flex flex-col relative">
+                
+                {/* 票頭 */}
+                <div className="text-center border-b-2 border-dashed border-gray-500 pb-3 mb-3">
+                  <h1 className="text-2xl font-bold text-gray-800 tracking-[0.3em]">臺灣民歌鐵路</h1>
+                  <p className="text-xs text-gray-500 mt-1 font-mono">TAIWAN FOLK RAILWAY</p>
+                </div>
+                
+                {/* 乘車資訊 */}
+                <div className="flex justify-between items-center text-gray-800 font-bold text-xl mb-4">
+                  <span>現 在</span>
+                  <span className="text-sm">➡</span>
+                  <span>回 憶</span>
+                </div>
+
+                <div className="flex justify-between text-sm text-gray-600 mb-4 font-mono">
+                  <span>車次: 1970</span>
+                  <span>座位: 自由座</span>
+                </div>
+
+                {/* 影像與心情 */}
+                <div className="flex items-end gap-3 mt-auto">
+                  <div className="w-20 h-24 border-2 border-gray-400 p-1 bg-white rotate-[-3deg]">
+                     <img src={captureImg} alt="passenger" className="w-full h-full object-cover filter sepia contrast-125" />
+                  </div>
+                  <div className="flex flex-col pb-1">
+                    <span className="text-[10px] text-gray-500 tracking-widest">MOOD INDEX</span>
+                    <span className="text-3xl font-bold text-red-600 tracking-widest">
+                      {moodResult === 'happy' && "晴 朗"}
+                      {moodResult === 'sad' && "微 雨"}
+                      {moodResult === 'neutral' && "平 靜"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-2 right-2 text-[10px] text-gray-400 font-mono">No. 8830192</div>
+              </div>
+            </div>
             
-            {/* 環境光與氛圍：隨心情改變 */}
-            {mood === 'happy' && <Environment preset="sunset" />}
-            {mood === 'sad' && <Environment preset="night" />}
-            {mood === 'neutral' && <Environment preset="city" />}
+            <button onClick={() => setStep('intro')} className="mt-6 text-gray-500 underline hover:text-gray-800 text-sm">重新驗票</button>
+          </div>
+        )}
 
-            <ambientLight intensity={mood === 'sad' ? 0.2 : 0.6} />
-            
-            <pointLight 
-                position={[0, 2, 0]} 
-                intensity={mood === 'sad' ? 0.5 : 1.5} 
-                color={mood === 'happy' ? "#FFF3E0" : (mood === 'sad' ? "#E0F7FA" : "#FFF")} 
-                distance={10} 
-                castShadow 
-            />
-            
-            {/* 場景物件 */}
-            <MovingLandscape mood={mood} />
-            <ImportedTrain />
-            <MoodRadio onClick={startMoodScan} status={scanStatus} />
-
-            <ContactShadows position={[0, -2.5, 0]} opacity={0.5} scale={20} blur={2} far={4} />
-
-            <OrbitControls 
-              enableZoom={true} 
-              enablePan={false} 
-              maxPolarAngle={Math.PI / 1.9} 
-              minPolarAngle={Math.PI / 4}
-              maxDistance={12}
-            />
-        </Suspense>
-      </Canvas>
-
-      <div className="absolute bottom-8 left-0 w-full text-center text-white/40 text-sm pointer-events-none">
-         拖曳畫面查看 • 點擊桌上的收音機啟動 AI
       </div>
     </div>
   );

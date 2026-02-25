@@ -1,10 +1,24 @@
 export const gameModes = [
   {
-    id: 'lyrics',
-    title: "歌詞拼貼",
-    description: "修復記憶中的旋律",
-    color: "bg-folk-red",
-    icon: "📝"
+    id: 'mood-train',
+    title: "心情列車",
+    description: "通往內心的時光鐵道",
+    color: "bg-indigo-600", 
+    icon: "🚂"
+  },
+  {
+    id: 'ai-zimage',
+    title: "AI 創作",
+    description: "生成你的民歌封面",
+    color: "bg-cyan-600",
+    icon: "🖥️"
+  },
+  {
+    id: 'faceswap',
+    title: "時光變臉",
+    description: "成為經典專輯主角",
+    color: "bg-rose-700", 
+    icon: "🎭"
   },
   {
     id: 'ar',
@@ -14,80 +28,17 @@ export const gameModes = [
     icon: "🖐️"
   },
   {
-    id: 'ai',
-    title: "AI 映像",
-    description: "生成你的民歌封面",
-    color: "bg-folk-gold",
-    icon: "🎨"
+    id: 'lyrics',
+    title: "歌詞拼貼",
+    description: "修復記憶中的旋律",
+    color: "bg-folk-red",
+    icon: "📝"
   },
-  {
-    id: '3d',
-    title: "時光宿舍",
-    description: "探索 80 年代的空間",
-    color: "bg-indigo-500",
-    icon: "🏠"
-  },
-  {
-    id: 'audio-ar',
-    title: "聽見民歌",
-    description: "讓旋律在空間中綻放",
-    color: "bg-pink-500",
-    icon: "🎵"
-  },
-  // ↓↓↓ 將這個移到這裡 ↓↓↓
-  {
-    id: 'karaoke',
-    title: "民歌接龍",
-    description: "用聲音喚醒記憶",
-    color: "bg-blue-500",
-    icon: "🎙️"
-  },
-  // ↑↑↑ 移到這裡 ↑↑↑
-  // 新增：封面拍照
-  {
-    id: 'photobooth',
-    title: "封面人物",
-    description: "化身民歌時代巨星",
-    color: "bg-teal-600", // 復古青色
-    icon: "📸"
-  },
-  // 新增：心情列車 (結合 3D 與表情辨識的旗艦功能)
-  {
-    id: 'mood-train',
-    title: "心情列車",
-    description: "通往內心的時光鐵道",
-    color: "bg-indigo-600", 
-    icon: "🚂"
-  },
-  // 新增：AI 換臉 (Faceswap)
-  {
-    id: 'faceswap',
-    title: "時光變臉",
-    description: "成為經典專輯主角",
-    color: "bg-rose-700", // 深紅色
-    icon: "🎭"
-  },
-  // 新增：時光膠囊 (互動 HTML 下載)
   {
     id: 'capsule',
     title: "時光膠囊",
     description: "打包你的專屬回憶",
     color: "bg-amber-500", 
     icon: "🎁"
-  },
-  {
-  id: 'ai-zimage',
-  title: "AI 創作 (Local)",
-  description: "使用本地 ComfyUI 生成",
-  color: "bg-cyan-600",
-  icon: "🖥️"
-},
-  {
-    id: 'dev1',
-    title: "開發中",
-    description: "敬請期待",
-    color: "bg-gray-400",
-    icon: "🔧",
-    locked: true
   }
 ];
