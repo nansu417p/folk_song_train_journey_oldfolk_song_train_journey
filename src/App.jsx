@@ -13,6 +13,8 @@ import ArGame from './components/Games/ArGame/ArGame';
 import LyricsGame from './components/Games/LyricsGame/LyricsGame';
 import CapsuleGame from './components/Games/CapsuleGame/CapsuleGame'; 
 
+const API_URL = "https://cory-uninduced-ozell.ngrok-free.dev"; 
+
 const GlobalMoodEffects = ({ mood }) => {
   if (!mood || mood === 'neutral') return null;
 
@@ -65,43 +67,127 @@ const GlobalMoodEffects = ({ mood }) => {
 
 function App() {
   const [activeMode, setActiveMode] = useState(null); 
+  const [mainSong, setMainSong] = useState(null);
+
   const [zimageSong, setZimageSong] = useState(null); 
   const [lyricsGameSong, setLyricsGameSong] = useState(null); 
   const [capsuleSong, setCapsuleSong] = useState(null); 
 
   const [globalMood, setGlobalMood] = useState('neutral');
-  const [bgm, setBgm] = useState('bg_music.mp3');
-  const [isPlaying, setIsPlaying] = useState(false);
-  
   const [ticketData, setTicketData] = useState(null); 
   
-  const audioRef = useRef(null);
+  // ★ AI 封面專屬全域狀態
+  const [coverData, setCoverData] = useState(null); 
+  const [coverStatus, setCoverStatus] = useState('idle'); 
+  const [generatedCoverImg, setGeneratedCoverImg] = useState(null);
+
+  // ★ 純 JS 音樂引擎
+  const globalAudioRef = useRef(null);
+  const [currentTrackName, setCurrentTrackName] = useState('bg_music.mp3');
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!globalAudioRef.current) {
+      globalAudioRef.current = new Audio(`/music/bg_music.mp3`);
+      globalAudioRef.current.loop = true;
+    }
+    return () => {
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  const playTrack = (fileName) => {
+    if (!globalAudioRef.current || !fileName) return;
+
+    const audio = globalAudioRef.current;
+    const currentSrc = audio.getAttribute('src') || '';
+    
+    if (currentSrc.includes(fileName)) {
+      if (audio.paused) {
+        audio.play().catch(e => console.log("播放攔截:", e));
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    audio.pause();
+    audio.src = `/music/${fileName}`;
+    audio.load();
+    audio.play().catch(e => console.log("播放攔截:", e));
+    
+    setCurrentTrackName(fileName);
+    setIsPlaying(true);
+  };
+
+  const pauseMusic = () => {
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (isPlaying) {
+      pauseMusic();
+    } else {
+      playTrack(currentTrackName);
+    }
+  };
+
+  // ★ 背景生圖 API 呼叫函數
+  const handleStartGenerateCover = async (payload) => {
+    setCoverStatus('generating');
+    setGeneratedCoverImg(null);
+    try {
+      const response = await fetch(`${API_URL}/sdapi/v1/txt2img`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`API 無回應`);
+      const data = await response.json();
+      if (data.images && data.images.length > 0) {
+        setGeneratedCoverImg(`data:image/png;base64,${data.images[0]}`);
+        setCoverStatus('done');
+      }
+    } catch (error) {
+      alert(`繪製錯誤: ${error.message}`);
+      setCoverStatus('idle');
+    }
+  };
 
   const homeSectionRef = useRef(null);
   const trainSectionRef = useRef(null);
   const gameSectionRef = useRef(null);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) audioRef.current.play().catch(e => console.log("等待互動", e));
-      else audioRef.current.pause();
-    }
-  }, [isPlaying, bgm]);
-
   const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth' });
-  const handleStartJourney = () => { setIsPlaying(true); scrollTo(trainSectionRef); };
+  
+  const handleStartJourney = () => { 
+    playTrack('bg_music.mp3'); 
+    scrollTo(trainSectionRef); 
+  };
+  
   const handleBackToHome = () => scrollTo(homeSectionRef);
 
-  // ★ 關鍵優化：離開遊戲時，先平滑滾動，再將 activeMode 設為 null，藉此卸載鏡頭與釋放效能
   const handleLeaveGame = () => {
     scrollTo(trainSectionRef);
     setTimeout(() => {
       setActiveMode(null);
-    }, 600); // 等待滾動動畫完成後關閉元件
+      if (globalAudioRef.current && globalAudioRef.current.paused) {
+        globalAudioRef.current.play().catch(e => console.log(e));
+        setIsPlaying(true);
+      }
+    }, 600); 
   };
 
   const handleModeSelect = (mode) => {
     if (mode.locked) return;
+    
+    if (mode.id === 'ar') pauseMusic();
+    
     setActiveMode(mode.id);
     setZimageSong(null); setLyricsGameSong(null); setCapsuleSong(null);
     setTimeout(() => scrollTo(gameSectionRef), 100);
@@ -113,30 +199,22 @@ function App() {
     </button>
   );
 
-  const SongSelector = ({ title, onSelect, icon }) => (
-    <div className="w-full max-w-5xl px-4 flex flex-col items-center h-full pt-20">
-      <UnifiedBackButton onClick={handleLeaveGame} />
-      <h2 className="text-4xl text-gray-800 font-bold mb-12 tracking-wider drop-shadow-sm">{title}</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full">
-        {folkSongs.map((song) => (
-          <div key={song.id} onClick={() => onSelect(song)} className="bg-[#FDFBF7] rounded-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 shadow-md hover:shadow-xl flex overflow-hidden h-32 border border-gray-200 relative group">
-            <div className="w-4 h-full bg-red-500 absolute left-0 top-0"></div>
-            <div className="pl-10 p-6 flex flex-col justify-center flex-1">
-              <h3 className="text-2xl font-bold text-gray-800">{song.title}</h3>
-              <p className="text-gray-500 text-sm mt-1">{song.singer}</p>
-            </div>
-            <div className="w-20 flex items-center justify-center text-3xl bg-gray-100 border-l border-gray-200 group-hover:bg-gray-200 transition-colors">{icon}</div>
-          </div>
-        ))}
-      </div>
+  const RequireMainSongPrompt = () => (
+    <div className="flex flex-col items-center bg-[#F5F5F5] p-10 rounded-lg shadow-xl border border-gray-300 text-center">
+      <h2 className="text-3xl font-bold text-gray-800 mb-4 tracking-widest">尚未選擇旅程主打歌</h2>
+      <p className="text-gray-600 mb-8 text-lg">請先前往【捕捉民歌】車廂，用手勢抓取一首您喜愛的歌曲，作為後續創作的主旋律。</p>
+      <button 
+        onClick={() => handleModeSelect({ id: 'ar', locked: false })} 
+        className="px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow hover:bg-red-500 hover:-translate-y-1 transition-all duration-300 tracking-widest"
+      >
+        🖐️ 前往捕捉民歌
+      </button>
     </div>
   );
 
   return (
     <div className="w-full min-h-screen bg-[#EAEAEA] text-folk-dark font-serif overflow-x-hidden flex flex-col">
-      <audio ref={audioRef} src={`/music/${bgm}`} loop />
-
-      {/* Section 1: 首頁 */}
+      
       <section ref={homeSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/home-bg.jpg')" }}></div>
         <div className="absolute inset-0 bg-black/20 z-0"></div>
@@ -153,7 +231,6 @@ function App() {
         </div>
       </section>
 
-      {/* Section 2: 火車模式選擇 */}
       <section ref={trainSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/train-bg.jpg')" }}></div>
         <GlobalMoodEffects mood={globalMood} />
@@ -164,23 +241,25 @@ function App() {
              <div className="flex flex-col mr-6">
                <span className="text-[10px] text-gray-500 font-bold tracking-widest">NOW PLAYING</span>
                <span className="text-sm text-gray-800 font-bold tracking-wider">
-                 {bgm === 'bg_music.mp3' ? '經典民歌放送中' : bgm.replace('.mp3', '')}
+                 {mainSong ? mainSong.title : (currentTrackName === 'bg_music.mp3' ? '經典民歌放送中' : (currentTrackName || '').replace('.mp3', ''))}
                </span>
              </div>
-             <button onClick={() => setIsPlaying(!isPlaying)} className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded text-gray-800 hover:bg-gray-300 transition-colors border border-gray-400">
+             <button onClick={togglePlayPause} className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded text-gray-800 hover:bg-gray-300 transition-colors border border-gray-400">
                {isPlaying ? 'II' : '▶'}
              </button>
           </div>
           
+          {/* 傳入 coverData 與 coverStatus 供火車大廳顯示 */}
           <TrainPage 
             onSelectMode={handleModeSelect} 
             onBack={handleBackToHome} 
             ticket={ticketData} 
+            cover={coverData} 
+            coverStatus={coverStatus} 
           />
         </div>
       </section>
 
-      {/* Section 3: 互動/遊戲區 */}
       <section ref={gameSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/game-bg.jpg')" }}></div>
         <div className="absolute inset-0 bg-black/10 z-0"></div> 
@@ -190,7 +269,6 @@ function App() {
           
           {!activeMode && <div className="text-gray-700 text-2xl font-bold tracking-widest bg-[#F5F5F5] px-8 py-4 rounded-lg shadow border border-gray-300">請先在上方火車選擇一種體驗...</div>}
 
-          {/* ★ 所有關卡統一套用 handleLeaveGame 來卸載 */}
           {activeMode === 'mood-train' && (
              <div className="w-full h-full">
                <MoodTrainGame 
@@ -204,50 +282,74 @@ function App() {
              </div>
           )}
 
+          {activeMode === 'ar' && (
+             <div className="w-full h-full">
+               <ArGame 
+                 onBack={() => {
+                   const fallbackFileName = mainSong ? mainSong.audioFileName : 'bg_music.mp3';
+                   playTrack(fallbackFileName);
+                   handleLeaveGame();
+                 }} 
+                 onPreviewSong={(song) => {
+                   const fileName = song.audioFileName || song.audioFile;
+                   playTrack(fileName);
+                 }}
+                 onConfirmSong={(song) => {
+                   setMainSong(song);
+                   const fileName = song.audioFileName || song.audioFile;
+                   playTrack(fileName); 
+                   handleLeaveGame(); 
+                 }}
+               />
+             </div>
+          )}
+
+          {/* ★ 確保所有 props 都正確傳遞給 AiCoverGame_zimage */}
           {activeMode === 'ai-zimage' && (
-             <div className="w-full h-full flex flex-col items-center justify-center">
-               {!zimageSong ? (
-                 <SongSelector title="請選擇要創作的歌曲" onSelect={setZimageSong} icon="🎨" />
-               ) : (
-                 <AiCoverGame_zimage song={zimageSong} onBack={() => setZimageSong(null)} onHome={handleLeaveGame} />
+             <div className="w-full h-full flex flex-col items-center justify-center relative">
+               <UnifiedBackButton onClick={handleLeaveGame} />
+               {!mainSong ? <RequireMainSongPrompt /> : (
+                 <AiCoverGame_zimage 
+                   song={mainSong} 
+                   onHome={handleLeaveGame} 
+                   coverStatus={coverStatus}
+                   generatedCoverImg={generatedCoverImg}
+                   onStartGenerate={handleStartGenerateCover}
+                   onSetMockCover={(url) => { 
+                     setGeneratedCoverImg(url); 
+                     setCoverStatus('done'); 
+                   }}
+                   onCoverGenerated={(img) => {
+                     setCoverData({ image: img, title: mainSong.title });
+                     setCoverStatus('idle'); // 領取後重置狀態
+                     handleLeaveGame();
+                   }}
+                 />
                )}
              </div>
           )}
 
           {activeMode === 'faceswap' && (
-            <div className="w-full h-full">
+            <div className="w-full h-full relative">
+              <UnifiedBackButton onClick={handleLeaveGame} />
               <FaceSwapGame onBack={handleLeaveGame} />
             </div>
           )}
 
-          {activeMode === 'ar' && (
-             <div className="w-full h-full">
-               <ArGame onBack={handleLeaveGame} />
-             </div>
-          )}
-
           {activeMode === 'lyrics' && (
-            <div className="w-full h-full flex flex-col items-center justify-center">
-              {!lyricsGameSong ? (
-                <SongSelector title="請選擇一首歌曲進行填詞" onSelect={setLyricsGameSong} icon="📝" />
-              ) : (
-                <div className="w-full h-full relative flex items-center justify-center">
-                   <UnifiedBackButton onClick={handleLeaveGame} />
-                   <button onClick={() => setLyricsGameSong(null)} className="absolute top-6 left-44 z-50 px-5 py-2.5 bg-gray-800 text-white font-bold rounded-lg shadow border border-gray-700 hover:bg-gray-700 transition-colors duration-300 tracking-wide">
-                     ↺ 重選歌曲
-                   </button>
-                   <LyricsGame song={lyricsGameSong} onRestart={() => setLyricsGameSong(null)} />
-                </div>
+            <div className="w-full h-full flex flex-col items-center justify-center relative">
+              <UnifiedBackButton onClick={handleLeaveGame} />
+              {!mainSong ? <RequireMainSongPrompt /> : (
+                <LyricsGame song={mainSong} onRestart={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} />
               )}
             </div>
           )}
 
           {activeMode === 'capsule' && (
-             <div className="w-full h-full flex flex-col items-center justify-center">
-               {!capsuleSong ? (
-                 <SongSelector title="請選擇要打包的歌曲" onSelect={setCapsuleSong} icon="🎁" />
-               ) : (
-                 <CapsuleGame song={capsuleSong} onBack={() => setCapsuleSong(null)} onHome={handleLeaveGame} />
+             <div className="w-full h-full flex flex-col items-center justify-center relative">
+               <UnifiedBackButton onClick={handleLeaveGame} />
+               {!mainSong ? <RequireMainSongPrompt /> : (
+                 <CapsuleGame song={mainSong} onBack={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} />
                )}
              </div>
           )}

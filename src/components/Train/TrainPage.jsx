@@ -2,16 +2,16 @@ import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useDraggable } from 'react-use-draggable-scroll';
 import { gameModes } from '../../data/gameModes';
+import TicketCard from '../Shared/TicketCard';
 
-const TrainPage = ({ onSelectMode, onBack, ticket }) => {
+const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus }) => {
   const scrollRef = useRef();
   const { events } = useDraggable(scrollRef);
 
   return (
     <div className="w-full h-full bg-transparent flex flex-col justify-center overflow-hidden relative">
       
-      {/* 左上角 UI 區域 */}
-      <div className="absolute top-6 left-6 z-20 flex flex-col gap-6 items-start">
+      <div className="absolute top-6 left-6 z-20 flex flex-col gap-4 items-start">
         <button 
           onClick={onBack} 
           className="px-5 py-2.5 bg-[#F5F5F5]/90 text-gray-800 font-bold rounded-lg shadow border border-gray-300 hover:bg-gray-200 hover:-translate-y-1 transition-all duration-300 tracking-wide flex items-center w-max"
@@ -19,57 +19,48 @@ const TrainPage = ({ onSelectMode, onBack, ticket }) => {
           ← 回首頁
         </button>
 
-        {/* ★ 完整版車票 (縮小為 75%，並加入紙膠帶設計) */}
-        {ticket && (
-          <motion.div 
-            initial={{ opacity: 0, x: -20, rotate: -15 }}
-            animate={{ opacity: 1, x: 0, rotate: -6 }}
-            transition={{ type: "spring", stiffness: 100, damping: 12 }}
-            className="relative origin-top-left scale-75 mt-2 drop-shadow-xl"
-          >
-            {/* 半透明紙膠帶 (手帳風格) */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-28 h-8 bg-[#fef08a]/60 backdrop-blur-[2px] shadow-sm z-30 rotate-3 border border-yellow-200/50"></div>
+        <div className="flex flex-row gap-8 items-start mt-2">
+            {ticket && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20, rotate: -15 }}
+                animate={{ opacity: 1, x: 0, rotate: -6 }}
+                whileHover={{ rotate: -2, scale: 1.05 }} 
+                transition={{ type: "spring", stiffness: 100, damping: 12 }}
+                className="relative drop-shadow-lg cursor-pointer z-50"
+              >
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-[#fef08a]/80 backdrop-blur-[2px] shadow-sm z-30 rotate-3 border border-yellow-200/50"></div>
+                <TicketCard captureImg={ticket.image} moodResult={ticket.mood} size="mini" />
+              </motion.div>
+            )}
 
-            {/* 完整車票 UI (完全複製 MoodTrainGame 的樣式) */}
-            <div className="bg-[#EAEAEA] w-[300px] rounded-sm flex flex-col relative overflow-hidden border border-gray-400 p-2">
-              <div className="absolute -left-3 top-20 w-6 h-6 bg-transparent rounded-full border-r border-gray-400 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]"></div>
-              <div className="absolute -right-3 top-20 w-6 h-6 bg-transparent rounded-full border-l border-gray-400 shadow-[inset_2px_0_4px_rgba(0,0,0,0.1)]"></div>
-              
-              <div className="border-[3px] border-gray-800 p-4 h-full flex flex-col relative bg-[#FDFBF7]">
-                <div className="text-center border-b-2 border-dashed border-gray-500 pb-3 mb-3">
-                  <h1 className="text-2xl font-bold text-gray-800 tracking-[0.3em]">臺灣民歌鐵路</h1>
-                  <p className="text-xs text-gray-500 mt-1 font-mono">TAIWAN FOLK RAILWAY</p>
-                </div>
-                <div className="flex justify-between items-center text-gray-800 font-bold text-xl mb-4">
-                  <span>現 在</span>
-                  <span className="text-sm">➡</span>
-                  <span>回 憶</span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-600 mb-4 font-mono">
-                  <span>車次: 1970</span>
-                  <span>座位: 自由座</span>
-                </div>
-                <div className="flex items-end gap-3 mt-auto">
-                  <div className="w-20 h-24 border-2 border-gray-400 p-1 bg-white rotate-[-3deg] shadow-sm">
-                     <img src={ticket.image} alt="passenger" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex flex-col pb-1">
-                    <span className="text-[10px] text-gray-500 tracking-widest font-bold">心情天氣</span>
-                    <span className="text-3xl font-bold text-red-600 tracking-widest">
-                      {ticket.mood === 'happy' && "晴 朗"}
-                      {ticket.mood === 'sad' && "微 雨"}
-                      {ticket.mood === 'neutral' && "平 靜"}
-                    </span>
+            {cover && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20, rotate: 10 }}
+                animate={{ opacity: 1, x: 0, rotate: 4 }}
+                whileHover={{ rotate: 0, scale: 1.05 }} 
+                transition={{ type: "spring", stiffness: 100, damping: 12 }}
+                className="relative drop-shadow-xl cursor-pointer z-40 -mt-4"
+              >
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-[#fca5a5]/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[-5deg] border border-red-200/50"></div>
+                
+                {/* 拍立得外框 */}
+                <div className="bg-white p-2 pb-0 rounded-sm shadow-md border border-gray-200 w-[200px] flex flex-col">
+                  {/* 純淨圖片 */}
+                  <img src={cover.image} alt="collected cover" className="w-full aspect-square object-cover border border-gray-300" />
+                  
+                  {/* ★ 修正：固定高度容器 + 消除預設行高 + 向上微調位置 (-top-[1px]) */}
+                  <div className="w-full h-9 flex items-center justify-center">
+                    <h3 className="font-bold text-gray-800 tracking-widest text-sm font-serif leading-none m-0 text-center relative -top-[1px]">
+                      {cover.title}
+                    </h3>
                   </div>
                 </div>
-                <div className="absolute bottom-2 right-2 text-[10px] text-gray-400 font-mono font-bold">No. 8830192</div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+              </motion.div>
+            )}
+        </div>
       </div>
       
-      <div className="text-center mt-10 mb-8 z-10">
+      <div className="text-center mt-10 mb-8 z-10 pointer-events-none">
         <h2 className="text-5xl font-bold mb-4 text-gray-800 drop-shadow-md">選擇你的旅程方式</h2>
         <p className="text-gray-700 font-bold text-xl drop-shadow">按住滑鼠左右拖曳火車，選擇一種體驗</p>
       </div>
@@ -89,7 +80,10 @@ const TrainPage = ({ onSelectMode, onBack, ticket }) => {
             />
           </div>
 
-          {gameModes.map((mode) => (
+          {gameModes.map((mode) => {
+            const isAiCover = mode.id === 'ai-zimage';
+
+            return (
             <motion.div
               key={mode.id}
               whileHover={{ scale: 1.05 }} 
@@ -109,14 +103,52 @@ const TrainPage = ({ onSelectMode, onBack, ticket }) => {
               />
               
               <div className="relative z-20 flex flex-col items-center justify-center -mt-8">
-                <div className="bg-[#F5F5F5]/95 px-8 py-3 rounded-lg border border-gray-300 shadow-md group-hover:bg-white transition-colors duration-300">
-                  <h3 className="text-3xl font-bold tracking-widest text-gray-800 drop-shadow-sm">
+                
+                {/* ★ 修正：綁定在銘牌正上方 (bottom-full)，保證 100% 水平居中，不再偏移 */}
+                <div className="absolute bottom-full mb-5 w-max flex justify-center pointer-events-none">
+                  {isAiCover && coverStatus === 'generating' && (
+                    <div className="bg-yellow-400 text-gray-800 px-6 py-2 rounded-full font-bold shadow-lg animate-pulse border-2 border-yellow-500 tracking-widest">
+                      ⏳ 畫家正在繪製中...
+                    </div>
+                  )}
+                  {isAiCover && coverStatus === 'done' && !cover && (
+                    <div className="bg-green-500 text-white px-6 py-2 rounded-full font-bold shadow-[0_0_20px_#22c55e] animate-bounce border-2 border-green-400 tracking-widest">
+                      ✨ 繪製完成！點擊入內領取
+                    </div>
+                  )}
+                </div>
+
+                <div className="
+                  bg-gradient-to-b from-gray-700 to-gray-900 
+                  px-10 py-3 
+                  rounded-sm 
+                  border-2 border-gray-500 
+                  ring-4 ring-black/30 
+                  shadow-[0_10px_20px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.2)] 
+                  group-hover:from-gray-600 group-hover:to-gray-800 
+                  transition-all duration-300
+                  relative
+                ">
+                  <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-gray-400 shadow-inner"></div>
+                  <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-gray-400 shadow-inner"></div>
+                  <div className="absolute bottom-1 left-1 w-1.5 h-1.5 rounded-full bg-gray-400 shadow-inner"></div>
+                  <div className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-gray-400 shadow-inner"></div>
+
+                  <h3 className="
+                    text-3xl font-bold tracking-widest 
+                    text-yellow-400 
+                    drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]
+                    group-hover:text-yellow-300
+                    transition-colors duration-300
+                  ">
                     {mode.title}
                   </h3>
                 </div>
               </div>
+
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
