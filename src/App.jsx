@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // 資料
 import { folkSongs } from './data/folkSongs';
@@ -66,6 +66,8 @@ const GlobalMoodEffects = ({ mood }) => {
 };
 
 function App() {
+  const [currentViewIndex, setCurrentViewIndex] = useState(0); 
+  
   const [activeMode, setActiveMode] = useState(null); 
   const [mainSong, setMainSong] = useState(null);
 
@@ -83,6 +85,9 @@ function App() {
   const [swappedData, setSwappedData] = useState(null); 
   const [faceswapStatus, setFaceswapStatus] = useState('idle'); 
   const [generatedSwappedImg, setGeneratedSwappedImg] = useState(null);
+
+  // ★ 新增：歌詞本收集品狀態
+  const [lyricsData, setLyricsData] = useState(null);
 
   const globalAudioRef = useRef(null);
   const [currentTrackName, setCurrentTrackName] = useState('bg_music.mp3');
@@ -179,7 +184,6 @@ function App() {
     }
   };
 
-  // ★ 恢復原本的 ref 實體滾動架構
   const homeSectionRef = useRef(null);
   const trainSectionRef = useRef(null);
   const gameSectionRef = useRef(null);
@@ -216,7 +220,6 @@ function App() {
     
     setActiveMode(mode.id);
     setZimageSong(null); setLyricsGameSong(null); setCapsuleSong(null);
-    
     setTimeout(() => scrollTo(gameSectionRef), 100);
   };
 
@@ -240,7 +243,6 @@ function App() {
   );
 
   return (
-    // ★ 鎖定外層滾動，只能靠按鈕觸發 scrollTo
     <div className="w-full h-screen overflow-hidden bg-[#EAEAEA] text-folk-dark font-serif flex flex-col">
       
       <section ref={homeSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
@@ -285,6 +287,7 @@ function App() {
             coverStatus={coverStatus} 
             swapped={swappedData}
             faceswapStatus={faceswapStatus}
+            lyrics={lyricsData}       // ★ 傳入歌詞收集品
             mainSong={mainSong}
           />
         </div>
@@ -385,7 +388,12 @@ function App() {
           {activeMode === 'lyrics' && (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
               {!mainSong ? <RequireMainSongPrompt /> : (
-                <LyricsGame song={mainSong} onRestart={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} />
+                <LyricsGame 
+                  song={mainSong} 
+                  onRestart={() => handleModeSelect({ id: 'ar' })} 
+                  onHome={handleLeaveGame} 
+                  onLyricsGenerated={(data) => setLyricsData(data)} // ★ 接收歌詞收集品資料
+                />
               )}
             </div>
           )}
