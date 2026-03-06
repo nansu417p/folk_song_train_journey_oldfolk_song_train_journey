@@ -4,12 +4,11 @@ import { useDraggable } from 'react-use-draggable-scroll';
 import { gameModes } from '../../data/gameModes';
 import TicketCard from '../Shared/TicketCard';
 
-const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, faceswapStatus, lyrics, mainSong }) => {
+const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, faceswapStatus, lyrics, recording, mainSong, onPauseMusic }) => {
   const scrollRef = useRef();
   const { events } = useDraggable(scrollRef);
   
-  // ★ Lightbox 放大系統狀態
-  const [lightbox, setLightbox] = useState(null); // { type: 'ticket' | 'cover' | 'swapped' | 'lyrics', data: ... }
+  const [lightbox, setLightbox] = useState(null); 
 
   return (
     <div className="w-full h-full bg-transparent flex flex-col justify-center overflow-hidden relative">
@@ -50,7 +49,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
               >
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-[#fca5a5]/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[-5deg] border border-red-200/50"></div>
                 <div className="bg-white p-2 pb-1 rounded-sm shadow-md border border-gray-200 w-[200px] flex flex-col pointer-events-none">
-                  {/* ★ 防拖曳設定 draggable="false" */}
                   <img src={cover.image} alt="collected cover" className="w-full aspect-square object-cover border border-gray-300" draggable="false" />
                   <div className="w-full flex items-center justify-center py-2 min-h-8">
                     <h3 className="font-bold text-gray-800 tracking-widest text-sm font-serif leading-none m-0 text-center relative -top-[1px]">
@@ -88,7 +86,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
               </motion.div>
             )}
 
-            {/* ★ 新增：微縮版歌詞收集品 */}
             {lyrics && (
               <motion.div 
                 initial={{ opacity: 0, x: -20, rotate: 8 }}
@@ -105,6 +102,34 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                      {lyrics.content.substring(0, 180)}...
                    </div>
                    <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-[#FDFBF7] to-transparent"></div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ★ 新增：民歌錄音收集品 */}
+            {recording && (
+              <motion.div 
+                initial={{ opacity: 0, x: -20, rotate: -3 }}
+                animate={{ opacity: 1, x: 0, rotate: 1 }}
+                whileHover={{ rotate: 0, scale: 1.05 }} 
+                transition={{ type: "spring", stiffness: 100, damping: 12 }}
+                onClick={() => setLightbox({ type: 'recording', data: recording })}
+                className="relative drop-shadow-xl cursor-pointer z-20 mt-4 hover:z-[60]"
+              >
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-green-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-2 border border-green-300/50"></div>
+                <div className="bg-[#FDFBF7] p-2 pb-1 rounded-sm shadow-md border border-gray-200 w-[200px] flex flex-col pointer-events-none">
+                  {/* 復古錄音帶圖示設計 */}
+                  <div className="w-full aspect-square bg-[#2A2A2A] rounded-sm flex flex-col items-center justify-center border-4 border-gray-300 shadow-inner overflow-hidden relative">
+                      <span className="text-6xl drop-shadow-md relative -top-2">📼</span>
+                      <div className="absolute bottom-4 text-[#F5F5F5] text-[10px] font-bold tracking-widest bg-red-600 px-3 py-0.5 rounded-sm shadow border border-red-800">
+                         RECORDING
+                      </div>
+                  </div>
+                  <div className="w-full flex items-center justify-center py-2 min-h-8">
+                    <h3 className="font-bold text-gray-800 tracking-widest text-sm font-serif leading-none m-0 text-center relative -top-[1px]">
+                      {recording.title}
+                    </h3>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -191,7 +216,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
         </div>
       </div>
 
-      {/* ★ Lightbox 放大模態框 */}
       <AnimatePresence>
         {lightbox && (
           <motion.div 
@@ -201,7 +225,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
           >
             <motion.div 
               initial={{ scale: 0.8, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 30 }} transition={{ type: "spring", damping: 20 }}
-              onClick={(e) => e.stopPropagation()} // 避免點擊內容區關閉
+              onClick={(e) => e.stopPropagation()} 
               className="relative flex flex-col items-center justify-center max-h-full max-w-full"
             >
                {lightbox.type === 'ticket' && (
@@ -233,6 +257,24 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                    <div className="text-lg text-gray-700 leading-loose font-serif whitespace-pre-wrap text-center px-4">
                      {lightbox.data.content}
                    </div>
+                 </div>
+               )}
+
+               {/* ★ 新增：民歌錄音 Lightbox 播放器 */}
+               {lightbox.type === 'recording' && (
+                 <div className="bg-[#FDFBF7] p-10 rounded-sm shadow-2xl border border-[#C0B8A3] w-[450px] flex flex-col items-center relative">
+                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-40 h-10 bg-green-100/90 backdrop-blur-[2px] shadow-sm z-30 rotate-[1deg] border border-green-300"></div>
+                   <div className="text-9xl mb-6 drop-shadow-xl mt-4">📼</div>
+                   <h2 className="text-2xl font-bold text-gray-800 text-center border-b-2 border-gray-300 pb-4 mb-8 tracking-widest font-serif w-full">
+                     {lightbox.data.title} - 專屬錄音
+                   </h2>
+                   {/* 播放時觸發 onPauseMusic 讓大廳安靜 */}
+                   <audio 
+                     src={lightbox.data.audioUrl} 
+                     controls 
+                     className="w-full outline-none shadow-md rounded-full"
+                     onPlay={() => { if (onPauseMusic) onPauseMusic(); }}
+                   />
                  </div>
                )}
 

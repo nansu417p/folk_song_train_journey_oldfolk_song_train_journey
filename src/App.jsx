@@ -11,7 +11,7 @@ import AiCoverGame_zimage from './components/Games/AiCoverGame/AiCoverGame_zimag
 import FaceSwapGame from './components/Games/FaceSwapGame/FaceSwapGame'; 
 import ArGame from './components/Games/ArGame/ArGame'; 
 import LyricsGame from './components/Games/LyricsGame/LyricsGame';
-import SingAlongGame from './components/Games/SingAlongGame/SingAlongGame'; // ★ 引入新遊戲
+import SingAlongGame from './components/Games/SingAlongGame/SingAlongGame'; 
 import CapsuleGame from './components/Games/CapsuleGame/CapsuleGame'; 
 
 const API_URL = "https://cory-uninduced-ozell.ngrok-free.dev"; 
@@ -78,16 +78,14 @@ function App() {
 
   const [globalMood, setGlobalMood] = useState('neutral');
   const [ticketData, setTicketData] = useState(null); 
-  
   const [coverData, setCoverData] = useState(null); 
   const [coverStatus, setCoverStatus] = useState('idle'); 
   const [generatedCoverImg, setGeneratedCoverImg] = useState(null);
-
   const [swappedData, setSwappedData] = useState(null); 
   const [faceswapStatus, setFaceswapStatus] = useState('idle'); 
   const [generatedSwappedImg, setGeneratedSwappedImg] = useState(null);
-
   const [lyricsData, setLyricsData] = useState(null);
+  const [recordingData, setRecordingData] = useState(null);
 
   const globalAudioRef = useRef(null);
   const [currentTrackName, setCurrentTrackName] = useState('bg_music.mp3');
@@ -214,7 +212,6 @@ function App() {
       alert("此歌曲的經典封面沒有人臉，無法進行換臉喔！");
       return;
     }
-    // ★ 進入 AR, 拼貼歌詞, 或跟著唱 時，暫停背景音樂
     if (mode.id === 'ar' || mode.id === 'lyrics' || mode.id === 'sing-along') {
       pauseMusic();
     }
@@ -289,6 +286,8 @@ function App() {
             swapped={swappedData}
             faceswapStatus={faceswapStatus}
             lyrics={lyricsData}
+            recording={recordingData} 
+            onPauseMusic={pauseMusic} 
             mainSong={mainSong}
           />
         </div>
@@ -341,20 +340,35 @@ function App() {
             </div>
           )}
 
-          {/* ★ 新增：跟著唱 (Sing Along) 車廂 */}
           {activeMode === 'sing-along' && (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
               {!mainSong ? <RequireMainSongPrompt /> : (
-                <SingAlongGame song={mainSong} onHome={handleLeaveGame} />
+                <SingAlongGame 
+                  song={mainSong} 
+                  onHome={handleLeaveGame} 
+                  onRecordingComplete={(audioUrl) => {
+                    if (audioUrl) setRecordingData({ audioUrl, title: mainSong.title });
+                    handleLeaveGame();
+                  }}
+                />
               )}
             </div>
           )}
 
           {activeMode === 'capsule' && (
              <div className="w-full h-full flex flex-col items-center justify-center relative">
-               <UnifiedBackButton onClick={handleLeaveGame} />
                {!mainSong ? <RequireMainSongPrompt /> : (
-                 <CapsuleGame song={mainSong} onBack={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} />
+                 // ★ 將所有的收集品資料傳入 CapsuleGame
+                 <CapsuleGame 
+                   song={mainSong} 
+                   ticket={ticketData}
+                   cover={coverData}
+                   swapped={swappedData}
+                   lyrics={lyricsData}
+                   recording={recordingData}
+                   onBack={() => handleModeSelect({ id: 'ar' })} 
+                   onHome={handleLeaveGame} 
+                 />
                )}
              </div>
           )}
