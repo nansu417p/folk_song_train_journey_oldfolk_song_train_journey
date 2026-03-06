@@ -1,194 +1,136 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import html2canvas from 'html2canvas';
 
-// ★ 強化版轉換器：確保「所有圖片」與「音訊」都被轉成 Base64，確保 HTML 檔案可以 100% 離線開啟
-const fetchFileAsBase64 = async (url) => {
-  if (!url) return null;
-  // 如果已經是 base64，直接回傳
-  if (url.startsWith('data:')) return url; 
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("File not found");
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result); 
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (e) {
-    console.error("檔案轉換失敗:", e);
-    return url; // 若轉換失敗，退回原 URL 嘗試
-  }
-};
-
-const generateHTMLContent = (song, bgmBase64, recordBase64, coverBase64, ticketBase64, customMessage, lyricsText) => {
-  const safeMessage = customMessage || '這是一段專屬於民歌時代的美好回憶。';
-  const displayLyrics = lyricsText || '記憶尚未修復...';
-
-  // ★ 在生成的 HTML 中直接引入 Tailwind CDN，保證排版與預覽 100% 一致！
-  return `
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${song.title} - 民歌回憶膠囊</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Noto Serif TC', serif; background-color: #E0D8C3; background-image: radial-gradient(circle at 50% 50%, #EAEAEA 0%, #C0B8A3 100%); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #d1d5db; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #9ca3af; }
-    </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-4 md:p-10">
-
-    <div class="w-full max-w-4xl bg-[#FDFBF7] rounded-xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-gray-200 relative">
+// 建立一個獨立的組件，專門用來產生明信片的外觀。
+// 這樣預覽區和截圖區就可以共用同一套排版代碼。
+const PostcardTemplate = ({ song, ticket, selectedCoverImg, customMessage, lyrics }) => {
+  return (
+    <div className="w-[900px] h-[500px] bg-[#FDFBF7] flex flex-row overflow-hidden border border-gray-200">
+      {/* 左半邊：圖片與車票 */}
+      <div className="w-[350px] flex flex-col border-r-2 border-dashed border-gray-300 relative bg-white">
         
-        <div class="w-full md:w-2/5 flex flex-col border-b-2 md:border-b-0 md:border-r-2 border-dashed border-gray-300 relative bg-white">
-            <div class="w-full aspect-[4/3] bg-gray-200 relative overflow-hidden border-b-4 border-red-500">
-              ${coverBase64 
-                ? `<img src="${coverBase64}" class="w-full h-full object-cover" alt="Cover" />` 
-                : `<div class="w-full h-full flex items-center justify-center text-gray-400">無封面</div>`
-              }
-            </div>
-            <div class="p-6 flex flex-col items-center justify-center flex-1 relative">
-                <div class="absolute top-4 right-4 w-16 h-16 border-4 border-red-500 rounded-full text-red-500 flex items-center justify-center font-bold text-sm transform rotate-12 opacity-80 shadow-sm">回憶<br/>封裝</div>
-                ${ticketBase64 
-                  ? `<img src="${ticketBase64}" class="w-full rounded shadow-md border border-gray-200 mt-4" alt="Ticket" />` 
-                  : `<div class="text-gray-400 border border-dashed border-gray-300 w-full py-8 text-center rounded">無心情車票</div>`
-                }
-            </div>
+        {/* 主視覺 */}
+        <div className="w-full h-[260px] bg-gray-200 relative overflow-hidden border-b-4 border-red-500 p-3 pb-0">
+          {selectedCoverImg ? (
+            <img src={selectedCoverImg} className="w-full h-full object-cover rounded-t shadow-inner border border-gray-300 border-b-0" alt="Cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400">無圖片</div>
+          )}
         </div>
 
-        <div class="w-full md:w-3/5 p-6 md:p-8 flex flex-col bg-[#FAF8F2]">
-            <div class="border-b-2 border-gray-800 pb-2 mb-4 flex justify-between items-end">
-              <h1 class="text-3xl md:text-4xl font-bold text-gray-900 m-0 tracking-widest">${song.title}</h1>
-              <span class="text-gray-600 tracking-wider">${song.singer}</span>
-            </div>
-            
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 italic text-gray-700 min-h-[80px] mb-6 shadow-inner text-lg leading-relaxed">
-              「${safeMessage}」
-            </div>
-
-            <div class="flex-1 bg-white border border-gray-200 p-5 rounded text-sm md:text-base text-gray-600 overflow-y-auto custom-scrollbar relative shadow-inner max-h-[250px] mb-6">
-              <div class="font-bold text-gray-800 mb-3 tracking-widest">📖 修復歌詞：</div>
-              <div class="leading-loose tracking-wider whitespace-pre-wrap">${displayLyrics}</div>
-            </div>
-
-            <div class="flex gap-4 mt-auto">
-                <button id="btn-bgm" onclick="playAudio('bgm')" class="flex-1 py-3 bg-gray-800 text-white text-center rounded-lg font-bold tracking-widest hover:bg-gray-700 transition-all shadow-md">
-                  🎵 播放原曲
-                </button>
-                ${recordBase64 
-                  ? `<button id="btn-record" onclick="playAudio('record')" class="flex-1 py-3 bg-red-600 text-white text-center rounded-lg font-bold tracking-widest hover:bg-red-500 transition-all shadow-md">📼 播放錄音</button>` 
-                  : `<button disabled class="flex-1 py-3 bg-gray-300 text-gray-500 text-center rounded-lg font-bold tracking-widest cursor-not-allowed">📼 無錄音紀錄</button>`
-                }
-            </div>
+        {/* 車票區 */}
+        <div className="p-6 flex flex-col items-center justify-center flex-1 relative bg-[#FAF8F2]">
+          <div className="absolute top-2 right-4 w-14 h-14 border-4 border-red-500 rounded-full text-red-500 flex items-center justify-center font-bold text-xs transform rotate-12 opacity-80 shadow-sm z-10">回憶<br/>封裝</div>
+          
+          <div className="w-full text-left mb-2">
+              <h3 className="text-gray-800 font-bold tracking-widest m-0">民歌時光列車</h3>
+              <p className="text-gray-500 text-[10px] tracking-widest m-0">單程紀念車票</p>
+          </div>
+          
+          {ticket ? (
+            <img src={ticket.image} className="w-full rounded shadow-md border border-gray-300 transform -rotate-1" alt="Ticket" />
+          ) : (
+            <div className="text-gray-400 border border-dashed border-gray-300 w-full py-6 text-center rounded text-sm bg-white">無心情車票</div>
+          )}
         </div>
+      </div>
+
+      {/* 右半邊：文字與歌詞便籤 */}
+      <div className="flex-1 p-8 flex flex-col bg-[#FDFBF7]">
+        
+        <div className="border-b-2 border-gray-800 pb-2 mb-4 flex justify-between items-end">
+          <h1 className="text-3xl font-bold font-serif text-gray-900 m-0 tracking-widest">{song.title}</h1>
+          <span className="text-gray-600 font-serif tracking-wider">{song.singer}</span>
+        </div>
+        
+        <div className="bg-red-50/50 border-l-4 border-red-500 p-4 italic text-gray-700 font-serif min-h-[70px] mb-6 text-sm leading-relaxed">
+          「{customMessage || '這是一段專屬於民歌時代的美好回憶。'}」
+        </div>
+
+        {/* 歌詞便籤 (上半部清晰，下半部模糊) */}
+        <div className="flex-1 bg-yellow-50/30 border border-yellow-200/50 p-6 pt-8 rounded-lg text-gray-700 font-serif overflow-hidden relative mb-2 shadow-inner">
+          <div className="absolute top-0 left-0 w-full h-6 bg-yellow-100/60 border-b border-yellow-200/50 flex items-center justify-center text-[10px] text-yellow-800 font-bold tracking-widest">
+            - 記憶修復手稿 -
+          </div>
+          
+          <div className="leading-loose tracking-widest whitespace-pre-wrap text-[13px] opacity-90 h-full overflow-hidden">
+            {lyrics ? lyrics.content : '記憶尚未修復...'}
+          </div>
+          
+          {/* 底部漸層模糊遮罩 */}
+          <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#FDFBF7] via-[#FDFBF7]/90 to-transparent pointer-events-none"></div>
+        </div>
+
+        <div className="text-right text-[10px] text-gray-400 tracking-widest mt-2">
+          Generated by Folk Song Train Journey
+        </div>
+      </div>
     </div>
-
-    <audio id="audio-bgm" src="${bgmBase64 || ''}" loop></audio>
-    ${recordBase64 ? `<audio id="audio-record" src="${recordBase64}"></audio>` : ''}
-
-    <script>
-        const audioBgm = document.getElementById('audio-bgm');
-        const audioRecord = document.getElementById('audio-record');
-        const btnBgm = document.getElementById('btn-bgm');
-        const btnRecord = document.getElementById('btn-record');
-        
-        let currentPlaying = null;
-
-        function resetButtons() {
-            if(btnBgm) btnBgm.innerHTML = "🎵 播放原曲";
-            if(btnRecord) btnRecord.innerHTML = "📼 播放錄音";
-        }
-
-        function playAudio(type) {
-            if(audioBgm) audioBgm.pause();
-            if(audioRecord) audioRecord.pause();
-
-            const targetAudio = type === 'bgm' ? audioBgm : audioRecord;
-            const targetBtn = type === 'bgm' ? btnBgm : btnRecord;
-            const playText = type === 'bgm' ? "🎵 播放原曲" : "📼 播放錄音";
-            const pauseText = type === 'bgm' ? "II 暫停原曲" : "II 暫停錄音";
-            
-            if (currentPlaying === type) {
-                currentPlaying = null;
-                resetButtons();
-            } else {
-                if(targetAudio && targetAudio.src && targetAudio.src !== window.location.href) {
-                    targetAudio.currentTime = 0;
-                    targetAudio.play();
-                    currentPlaying = type;
-                    resetButtons();
-                    targetBtn.innerHTML = pauseText;
-                } else {
-                    alert("找不到音訊檔案！");
-                }
-            }
-        }
-
-        // 當音樂自然結束時，重置按鈕狀態
-        if(audioBgm) audioBgm.onended = resetButtons;
-        if(audioRecord) audioRecord.onended = () => { currentPlaying = null; resetButtons(); };
-    </script>
-</body>
-</html>
-  `;
+  );
 };
+
 
 const CapsuleGame = ({ song, ticket, cover, swapped, lyrics, recording, onBack, onHome }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
   const [selectedCoverType, setSelectedCoverType] = useState('cover'); 
 
+  // 決定要使用哪一張圖
   const selectedCoverImg = selectedCoverType === 'swapped' && swapped ? swapped.image : (cover ? cover.image : null);
 
-  const handleDownload = async () => {
+  const handleDownloadImage = async () => {
     setIsGenerating(true);
+    
     try {
-      // 1. 將所有資源轉為 Base64，保證 HTML 檔案可以 100% 離線獨立運作
-      const bgmBase64 = await fetchFileAsBase64(`/music/${song.audioFileName}`);
-      const recordBase64 = recording ? await fetchFileAsBase64(recording.audioUrl) : null;
-      
-      // ★ 強制將選擇的圖片與車票轉換為 Base64 (解決一日歌手圖片消失的問題)
-      const finalCoverBase64 = await fetchFileAsBase64(selectedCoverImg);
-      const finalTicketBase64 = ticket ? await fetchFileAsBase64(ticket.image) : null;
-      
-      // 2. 生成 HTML 內容
-      const htmlContent = generateHTMLContent(
-        song, 
-        bgmBase64, 
-        recordBase64, 
-        finalCoverBase64, 
-        finalTicketBase64,
-        customMessage,
-        lyrics ? lyrics.content : null
-      );
+      // 1. 建立一個暫時的隱藏容器，用來裝載「無縮放、尺寸絕對固定」的明信片元件
+      // 這樣 html2canvas 拍照時才不會被父層的 flex 或 scale 干擾而變成一條線
+      const captureContainer = document.createElement('div');
+      captureContainer.style.position = 'absolute';
+      captureContainer.style.top = '-9999px';
+      captureContainer.style.left = '-9999px';
+      document.body.appendChild(captureContainer);
 
-      // 3. 觸發下載
-      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+      // 2. 將明信片的 DOM 結構渲染進這個隱藏容器
+      // 由於我們沒辦法直接用 ReactDOM.render (React 18 不建議)，我們手動把預覽區的 HTML 複製過去
+      const previewElement = document.getElementById('postcard-preview-content');
+      captureContainer.innerHTML = previewElement.outerHTML;
+
+      // 3. 對這個隱藏且不受干擾的容器進行拍照
+      const canvas = await html2canvas(captureContainer.firstElementChild, {
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#FDFBF7'
+      });
+      
+      const imageURL = canvas.toDataURL("image/png");
       const link = document.createElement('a');
-      link.download = `${song.title}_民歌回憶明信片.html`;
-      link.href = url;
+      link.download = `${song.title}_民歌回憶明信片.png`;
+      link.href = imageURL;
       link.click();
-      URL.revokeObjectURL(url);
+
+      // 4. 拍完照後，把隱藏容器刪除清理乾淨
+      document.body.removeChild(captureContainer);
+
     } catch (e) {
-      alert("封裝失敗，請重試！");
+      alert("圖片生成失敗，請重試！");
       console.error(e);
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const handleDownloadAudio = () => {
+    if (!recording || !recording.audioUrl) return;
+    const link = document.createElement('a');
+    link.href = recording.audioUrl;
+    link.download = `${song.title}_我的演唱錄音.webm`; 
+    link.click();
+  };
+
   return (
-    <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center overflow-hidden bg-transparent p-4 md:p-8 pt-20 gap-8">
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-transparent p-8 pt-16">
       
-      {/* 左上角導航 */}
+      {/* 導航按鈕 */}
       <div className="absolute top-6 left-6 z-50 flex gap-4">
         <button onClick={onHome} className="px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border border-gray-300 hover:bg-gray-200 transition-all tracking-wide">
           ← 返回火車
@@ -198,111 +140,95 @@ const CapsuleGame = ({ song, ticket, cover, swapped, lyrics, recording, onBack, 
         </button>
       </div>
 
-      {/* 左側：工作台控制區 */}
-      <div className="w-full md:w-1/3 bg-[#EAEAEA] p-6 md:p-8 rounded-xl shadow-xl border-2 border-gray-300 flex flex-col h-full max-h-[85vh] overflow-y-auto custom-scrollbar relative z-20">
-         <h2 className="text-3xl font-bold text-gray-800 mb-2 tracking-widest font-serif">回憶封裝桌</h2>
-         <p className="text-gray-500 mb-8 text-sm">將您一路收集的記憶碎片，打包成專屬的數位明信片。</p>
-
-         {/* 步驟一：選擇封面 */}
-         <div className="mb-8">
-            <h3 className="font-bold text-gray-700 mb-3 bg-gray-200 px-3 py-1 rounded w-max text-sm">步驟一：選擇明信片封面</h3>
-            <div className="flex gap-4">
-               <div 
-                 onClick={() => setSelectedCoverType('cover')}
-                 className={`flex-1 cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${selectedCoverType === 'cover' ? 'border-red-500 shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
-               >
-                 {cover ? <img src={cover.image} className="w-full aspect-square object-cover" alt="AI Cover" /> : <div className="w-full aspect-square bg-gray-300 flex items-center justify-center text-xs text-gray-500">無 AI 封面</div>}
-                 <div className="bg-gray-800 text-white text-center text-xs py-1.5 tracking-widest">意境風景</div>
-               </div>
-               <div 
-                 onClick={() => setSelectedCoverType('swapped')}
-                 className={`flex-1 cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${selectedCoverType === 'swapped' ? 'border-red-500 shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
-               >
-                 {swapped ? <img src={swapped.image} className="w-full aspect-square object-cover" alt="FaceSwap Cover" /> : <div className="w-full aspect-square bg-gray-300 flex items-center justify-center text-xs text-gray-500">無合照</div>}
-                 <div className="bg-gray-800 text-white text-center text-xs py-1.5 tracking-widest">歌手合照</div>
-               </div>
-            </div>
-         </div>
-
-         {/* 步驟二：寫下留言 */}
-         <div className="mb-8 flex-1 flex flex-col">
-            <h3 className="font-bold text-gray-700 mb-3 bg-gray-200 px-3 py-1 rounded w-max text-sm">步驟二：寫下心情留言</h3>
-            <textarea 
-              value={customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              placeholder="寫下您聽完這首歌的感觸，或是想對老朋友說的話..."
-              className="flex-1 w-full min-h-[120px] bg-[#FDFBF7] border border-gray-300 rounded-lg p-4 font-serif text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 shadow-inner leading-relaxed"
-            ></textarea>
-         </div>
-
-         {/* 步驟三：封裝下載 */}
-         <button 
-           onClick={handleDownload}
-           disabled={isGenerating}
-           className={`w-full py-4 text-[#F5F5F5] text-lg rounded-lg font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-3 tracking-widest mt-auto
-             ${isGenerating ? 'bg-gray-400 cursor-wait' : 'bg-red-600 hover:bg-red-500 hover:-translate-y-1'}
-           `}
-         >
-           {isGenerating ? <><span className="animate-spin">💿</span> 正在鑄造回憶...</> : "📥 下載互動明信片 (.html)"}
-         </button>
-      </div>
-
-      {/* 右側：即時預覽區 (排版與生成的 HTML 完全一致) */}
-      <div className="w-full md:w-2/3 h-full max-h-[85vh] flex items-center justify-center relative pointer-events-none">
-         <div className="absolute top-0 left-6 text-gray-600/40 font-bold tracking-widest text-3xl font-serif z-0">LIVE PREVIEW</div>
+      {/* 回復成您喜歡的舊版寬度：左邊控制區佔 1/3，右邊預覽區佔 2/3 */}
+      <div className="w-full max-w-7xl h-[85vh] bg-[#E0D8C3] rounded-xl shadow-2xl border border-[#C0B8A3] flex overflow-hidden">
          
-         {/* 模擬的車票明信片 */}
-         <div className="w-full max-w-4xl bg-[#FDFBF7] rounded-xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-gray-200 relative z-10 transform rotate-1 hover:rotate-0 transition-transform duration-500 scale-95 md:scale-100">
-            
-            {/* 預覽：左側圖案區 */}
-            <div className="w-full md:w-2/5 flex flex-col border-b-2 md:border-b-0 md:border-r-2 border-dashed border-gray-300 relative bg-white">
-               <div className="w-full aspect-[4/3] bg-gray-200 relative overflow-hidden border-b-4 border-red-500">
-                 {selectedCoverImg ? (
-                   <img src={selectedCoverImg} className="w-full h-full object-cover" alt="Preview Cover" />
-                 ) : (
-                   <div className="w-full h-full flex items-center justify-center text-gray-400">請在左側選擇封面</div>
-                 )}
-               </div>
-               <div className="p-6 flex flex-col items-center justify-center flex-1 relative">
-                  <div className="absolute top-4 right-4 w-16 h-16 border-4 border-red-500 rounded-full text-red-500 flex items-center justify-center font-bold text-sm transform rotate-12 opacity-80 shadow-sm">回憶<br/>封裝</div>
-                  {ticket ? (
-                    <img src={ticket.image} className="w-full rounded shadow-md border border-gray-200 mt-4" alt="Ticket Preview" />
-                  ) : (
-                    <div className="text-gray-400 border border-dashed border-gray-300 w-full py-8 text-center rounded mt-4">無心情車票</div>
-                  )}
-               </div>
-            </div>
+         {/* 左側：工作台控制區 */}
+         <div className="w-1/3 bg-[#EAEAEA] p-8 border-r-2 border-dashed border-[#C0B8A3] flex flex-col overflow-y-auto custom-scrollbar z-20 shadow-xl">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2 tracking-widest font-serif">回憶封裝桌</h2>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">選擇封面並寫下留言，我們將為您生成專屬的明信片與錄音檔。</p>
 
-            {/* 預覽：右側文字區 */}
-            <div className="w-full md:w-3/5 p-6 md:p-8 flex flex-col bg-[#FAF8F2]">
-               <div className="border-b-2 border-gray-800 pb-2 mb-4 flex justify-between items-end">
-                 <h1 className="text-3xl md:text-4xl font-bold font-serif text-gray-900 m-0 tracking-widest">{song.title}</h1>
-                 <span className="text-gray-600 font-serif tracking-wider">{song.singer}</span>
-               </div>
-               
-               <div className="bg-red-50 border-l-4 border-red-500 p-4 italic text-gray-700 font-serif min-h-[80px] mb-6 shadow-inner text-lg leading-relaxed">
-                 「{customMessage || '這是一段專屬於民歌時代的美好回憶。'}」
-               </div>
-
-               {/* ★ 預覽歌詞區：與 HTML 一樣使用 overflow-y-auto 與 whitespace-pre-wrap */}
-               <div className="flex-1 bg-white border border-gray-200 p-5 rounded text-sm md:text-base text-gray-600 font-serif overflow-y-auto custom-scrollbar relative shadow-inner max-h-[250px] mb-6">
-                 <div className="font-bold text-gray-800 mb-3 tracking-widest">📖 修復歌詞：</div>
-                 <div className="leading-loose tracking-wider whitespace-pre-wrap">
-                    {lyrics ? lyrics.content : '記憶尚未修復...'}
-                 </div>
-               </div>
-
-               <div className="flex gap-4 mt-auto">
-                  <div className="flex-1 py-3 bg-gray-800 text-white text-center rounded-lg font-bold tracking-widest shadow-md">🎵 播放原曲</div>
-                  <div className={`flex-1 py-3 text-white text-center rounded-lg font-bold tracking-widest shadow-md ${recording ? 'bg-red-600' : 'bg-gray-400'}`}>
-                    📼 {recording ? '播放錄音' : '無錄音紀錄'}
+            {/* 步驟一：選擇封面 */}
+            <div className="mb-8">
+               <h3 className="font-bold text-gray-700 mb-3 bg-gray-200 px-3 py-1 rounded w-max text-sm">步驟一：選擇明信片封面</h3>
+               <div className="flex gap-4">
+                  <div 
+                    onClick={() => setSelectedCoverType('cover')}
+                    className={`flex-1 cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${selectedCoverType === 'cover' ? 'border-red-500 shadow-md scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                  >
+                    {cover ? <img src={cover.image} className="w-full aspect-[4/3] object-cover" alt="AI Cover" /> : <div className="w-full aspect-[4/3] bg-gray-300 flex items-center justify-center text-xs">無 AI 封面</div>}
+                    <div className="bg-gray-800 text-white text-center text-xs py-1.5 tracking-widest">意境風景</div>
+                  </div>
+                  <div 
+                    onClick={() => setSelectedCoverType('swapped')}
+                    className={`flex-1 cursor-pointer rounded-lg overflow-hidden border-4 transition-all ${selectedCoverType === 'swapped' ? 'border-red-500 shadow-md scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                  >
+                    {swapped ? <img src={swapped.image} className="w-full aspect-[4/3] object-cover" alt="FaceSwap Cover" /> : <div className="w-full aspect-[4/3] bg-gray-300 flex items-center justify-center text-xs">無合照</div>}
+                    <div className="bg-gray-800 text-white text-center text-xs py-1.5 tracking-widest">歌手合照</div>
                   </div>
                </div>
             </div>
 
-         </div>
-      </div>
+            {/* 步驟二：寫下留言 */}
+            <div className="mb-8 flex-1 flex flex-col">
+               <h3 className="font-bold text-gray-700 mb-3 bg-gray-200 px-3 py-1 rounded w-max text-sm">步驟二：寫下心情留言</h3>
+               <textarea 
+                 value={customMessage}
+                 onChange={(e) => setCustomMessage(e.target.value)}
+                 placeholder="寫下您聽完這首歌的感觸，或是想對老朋友說的話..."
+                 className="flex-1 w-full bg-[#FDFBF7] border border-gray-300 rounded-lg p-4 font-serif text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 shadow-inner leading-relaxed text-sm"
+               ></textarea>
+            </div>
 
+            {/* 步驟三：封裝下載 (雙按鈕) */}
+            <div className="flex flex-col gap-3 mt-auto">
+               <button 
+                 onClick={handleDownloadImage}
+                 disabled={isGenerating}
+                 className={`w-full py-4 text-[#F5F5F5] text-base rounded-lg font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-3 tracking-widest
+                   ${isGenerating ? 'bg-gray-400 cursor-wait' : 'bg-red-600 hover:bg-red-500 hover:-translate-y-1'}
+                 `}
+               >
+                 {isGenerating ? <><span className="animate-spin">📸</span> 正在產生圖片...</> : "📥 下載互動明信片 (.png)"}
+               </button>
+
+               {recording ? (
+                 <button 
+                   onClick={handleDownloadAudio}
+                   className="w-full py-4 text-white text-base rounded-lg font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-3 tracking-widest bg-gray-800 hover:bg-gray-700 hover:-translate-y-1"
+                 >
+                   📼 下載我的演唱錄音
+                 </button>
+               ) : (
+                 <div className="w-full py-4 bg-gray-300 text-gray-500 text-center rounded-lg font-bold text-base tracking-widest border border-gray-400 border-dashed">
+                   📼 此次無錄音紀錄
+                 </div>
+               )}
+            </div>
+         </div>
+
+         {/* 右側：即時預覽區 */}
+         <div className="w-2/3 bg-[#C0B8A3] p-10 flex items-center justify-center relative overflow-hidden">
+            <div className="absolute top-4 left-6 text-gray-600/50 font-bold tracking-widest text-2xl font-serif">LIVE PREVIEW</div>
+            
+            {/* 為了適應右側空間，我們使用 transform 稍微縮小預覽圖，並且加上一點旋轉增加質感 */}
+            <div className="transform scale-75 xl:scale-90 hover:scale-[0.92] transition-transform duration-500 origin-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.3)] rotate-1 hover:rotate-0">
+               {/* 這裡包裹一層 id="postcard-preview-content"，
+                 是用來提供給前面 HTML2Canvas 複製 HTML 用的 
+               */}
+               <div id="postcard-preview-content">
+                  <PostcardTemplate 
+                    song={song}
+                    ticket={ticket}
+                    selectedCoverImg={selectedCoverImg}
+                    customMessage={customMessage}
+                    lyrics={lyrics}
+                  />
+               </div>
+            </div>
+         </div>
+
+      </div>
     </div>
   );
 };
