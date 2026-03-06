@@ -67,14 +67,8 @@ const GlobalMoodEffects = ({ mood }) => {
 };
 
 function App() {
-  const [currentViewIndex, setCurrentViewIndex] = useState(0); 
-  
   const [activeMode, setActiveMode] = useState(null); 
   const [mainSong, setMainSong] = useState(null);
-
-  const [zimageSong, setZimageSong] = useState(null); 
-  const [lyricsGameSong, setLyricsGameSong] = useState(null); 
-  const [capsuleSong, setCapsuleSong] = useState(null); 
 
   const [globalMood, setGlobalMood] = useState('neutral');
   const [ticketData, setTicketData] = useState(null); 
@@ -90,6 +84,12 @@ function App() {
   const globalAudioRef = useRef(null);
   const [currentTrackName, setCurrentTrackName] = useState('bg_music.mp3');
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const homeSectionRef = useRef(null);
+  const storySectionRef = useRef(null); 
+  const trainSectionRef = useRef(null);
+  const gameSectionRef = useRef(null);
+  const outroSectionRef = useRef(null); 
 
   useEffect(() => {
     if (!globalAudioRef.current) {
@@ -142,6 +142,51 @@ function App() {
     }
   };
 
+  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth' });
+  
+  const handleStartIntro = () => { 
+    playTrack('bg_music.mp3'); 
+    scrollTo(storySectionRef); 
+  };
+  
+  const handleEnterTrain = () => {
+    scrollTo(trainSectionRef); 
+  };
+
+  const handleBackToHome = () => {
+    scrollTo(homeSectionRef); 
+  };
+
+  const handleEndJourney = () => {
+    pauseMusic(); 
+    scrollTo(outroSectionRef); 
+  };
+
+  const handleLeaveGame = () => {
+    scrollTo(trainSectionRef); 
+    setTimeout(() => {
+      setActiveMode(null);
+      if (globalAudioRef.current && globalAudioRef.current.paused) {
+        globalAudioRef.current.play().catch(e => console.log(e));
+        setIsPlaying(true);
+      }
+    }, 600); 
+  };
+
+  const handleModeSelect = (mode) => {
+    if (mode.locked) return;
+    if (mode.id === 'faceswap' && mainSong && !mainSong.hasFace) {
+      alert("此歌曲的經典封面沒有人臉，無法進行換臉喔！");
+      return;
+    }
+    if (mode.id === 'ar' || mode.id === 'lyrics' || mode.id === 'sing-along') {
+      pauseMusic();
+    }
+    
+    setActiveMode(mode.id);
+    setTimeout(() => scrollTo(gameSectionRef), 100);
+  };
+
   const handleStartGenerateCover = async (payload) => {
     setCoverStatus('generating');
     setGeneratedCoverImg(null);
@@ -182,58 +227,20 @@ function App() {
     }
   };
 
-  const homeSectionRef = useRef(null);
-  const trainSectionRef = useRef(null);
-  const gameSectionRef = useRef(null);
-
-  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth' });
-  
-  const handleStartJourney = () => { 
-    playTrack('bg_music.mp3'); 
-    scrollTo(trainSectionRef); 
-  };
-  
-  const handleBackToHome = () => scrollTo(homeSectionRef);
-
-  const handleLeaveGame = () => {
-    scrollTo(trainSectionRef);
-    setTimeout(() => {
-      setActiveMode(null);
-      if (globalAudioRef.current && globalAudioRef.current.paused) {
-        globalAudioRef.current.play().catch(e => console.log(e));
-        setIsPlaying(true);
-      }
-    }, 600); 
-  };
-
-  const handleModeSelect = (mode) => {
-    if (mode.locked) return;
-    if (mode.id === 'faceswap' && mainSong && !mainSong.hasFace) {
-      alert("此歌曲的經典封面沒有人臉，無法進行換臉喔！");
-      return;
-    }
-    if (mode.id === 'ar' || mode.id === 'lyrics' || mode.id === 'sing-along') {
-      pauseMusic();
-    }
-    
-    setActiveMode(mode.id);
-    setZimageSong(null); setLyricsGameSong(null); setCapsuleSong(null);
-    setTimeout(() => scrollTo(gameSectionRef), 100);
-  };
-
+  // ★ 統一的返回按鈕，加上半透明底色，確保在任何背景下都清楚
   const UnifiedBackButton = ({ onClick, text = "← 返回火車" }) => (
-    <button onClick={onClick} className="absolute top-6 left-6 z-50 px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border border-gray-300 hover:bg-gray-200 hover:-translate-y-1 transition-all duration-300 tracking-wide flex items-center">
+    <button onClick={onClick} className="absolute top-6 left-8 z-50 px-6 py-3 bg-[#FDFBF7]/90 backdrop-blur-sm text-gray-800 font-bold text-lg rounded-lg border-2 border-gray-400 shadow-[4px_4px_0_#9ca3af] hover:bg-gray-100 hover:translate-y-[2px] hover:shadow-[2px_2px_0_#9ca3af] transition-all tracking-widest flex items-center">
       {text}
     </button>
   );
 
   const RequireMainSongPrompt = () => (
-    <div className="flex flex-col items-center bg-[#F5F5F5] p-10 rounded-lg shadow-xl border border-gray-300 text-center">
-      <h2 className="text-3xl font-bold text-gray-800 mb-4 tracking-widest">尚未選擇旅程主打歌</h2>
-      <p className="text-gray-600 mb-8 text-lg">請先前往【捕捉民歌】車廂，用手勢抓取一首您喜愛的歌曲，作為後續創作的主旋律。</p>
+    <div className="flex flex-col items-center bg-[#FDFBF7] p-12 rounded-xl border-4 border-gray-300 shadow-[8px_8px_0_#d1d5db] text-center max-w-2xl">
+      <h2 className="text-4xl font-bold text-gray-800 mb-6 tracking-widest border-b-2 border-red-500 pb-4">尚未選擇旅程主打歌</h2>
+      <p className="text-gray-600 mb-10 text-xl leading-loose">請先前往【捕捉民歌】車廂，用手勢抓取一首您喜愛的歌曲，作為後續所有創作與回憶的主旋律。</p>
       <button 
         onClick={() => handleModeSelect({ id: 'ar', locked: false })} 
-        className="px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow hover:bg-red-500 hover:-translate-y-1 transition-all duration-300 tracking-widest"
+        className="px-10 py-4 bg-red-600 text-white font-bold text-xl rounded-lg border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all tracking-widest"
       >
         🖐️ 前往捕捉民歌
       </button>
@@ -242,37 +249,54 @@ function App() {
 
   return (
     <div className="w-full h-screen overflow-hidden bg-[#EAEAEA] text-folk-dark font-serif flex flex-col">
+      <GlobalMoodEffects mood={globalMood} />
       
       <section ref={homeSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/home-bg.jpg')" }}></div>
-        <div className="absolute inset-0 bg-black/20 z-0"></div>
-        <GlobalMoodEffects mood={globalMood} />
+        <div className="absolute inset-0 bg-black/30 z-0"></div>
         
         <div className="relative z-20 w-full h-full flex flex-col items-center justify-center">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center flex flex-col items-center bg-[#F5F5F5]/95 p-12 rounded-lg border border-gray-300 shadow-xl">
-            <h1 className="text-7xl font-bold tracking-widest mb-6 text-gray-800">民歌旅程</h1>
-            <p className="text-2xl text-gray-600 tracking-wider mb-10">那年，我們唱自己的歌</p>
-            <button onClick={handleStartJourney} className="px-10 py-4 bg-gray-800 text-[#F5F5F5] rounded-lg hover:bg-gray-700 hover:-translate-y-1 transition-all duration-300 text-lg font-bold tracking-widest shadow-md">
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center flex flex-col items-center bg-[#FDFBF7]/95 p-16 rounded-xl border-2 border-[#C0B8A3] shadow-2xl">
+            <h1 className="text-7xl md:text-8xl font-bold tracking-[0.2em] mb-6 text-gray-800 drop-shadow-sm">民歌旅程</h1>
+            <p className="text-2xl md:text-3xl text-gray-600 tracking-[0.3em] mb-12 border-t border-gray-400 pt-6">那年，我們唱自己的歌</p>
+            <button onClick={handleStartIntro} className="px-12 py-5 bg-gray-800 text-[#F5F5F5] rounded-lg text-xl font-bold tracking-widest border-2 border-black shadow-[6px_6px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#4b5563] transition-all">
               開啟旅程 ↓
             </button>
           </motion.div>
         </div>
       </section>
 
+      <section ref={storySectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
+        <div className="absolute inset-0 bg-cover bg-center z-0 opacity-40" style={{ backgroundImage: "url('/train-bg_2.jpg')" }}></div>
+        
+        <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-8">
+          <div className="w-full max-w-4xl bg-[#FDFBF7] p-12 md:p-16 rounded-xl shadow-2xl border-4 border-[#C0B8A3] flex flex-col items-center text-center">
+             <h2 className="text-4xl md:text-5xl font-bold text-gray-800 tracking-widest mb-8 border-b-2 border-red-500 pb-4">歡迎搭乘時光列車</h2>
+             <div className="text-xl md:text-2xl text-gray-700 leading-loose tracking-wider mb-12 text-left space-y-6">
+                <p>這是一趟通往 1970 年代的特別班車。</p>
+                <p>在這裡，沒有現代的喧囂，只有一把吉他、純粹的嗓音，以及那些曾經陪伴我們度過青春歲月的熟悉旋律。</p>
+                <p>接下來，請您跟著車廂內的指示，用手勢捕捉一首屬於您的民歌，並透過 AI 與聲音互動，將這份記憶重新擦亮，封裝成永恆的回憶。</p>
+             </div>
+             <button onClick={handleEnterTrain} className="px-12 py-5 bg-red-600 text-white rounded-lg text-xl font-bold tracking-widest border-2 border-red-800 shadow-[6px_6px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#7f1d1d] transition-all">
+               🎫 剪票上車 ↓
+             </button>
+          </div>
+        </div>
+      </section>
+
       <section ref={trainSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/train-bg.jpg')" }}></div>
-        <GlobalMoodEffects mood={globalMood} />
         
         <div className="relative z-20 w-full h-full">
-          <div className="absolute top-6 right-6 z-50 flex items-center bg-[#F5F5F5] px-4 py-2 rounded-lg shadow border border-gray-300">
-             <div className={`mr-3 text-xl ${isPlaying ? 'animate-spin' : ''}`}>💿</div>
-             <div className="flex flex-col mr-6">
-               <span className="text-[10px] text-gray-500 font-bold tracking-widest">NOW PLAYING</span>
-               <span className="text-sm text-gray-800 font-bold tracking-wider">
+          <div className="absolute top-6 right-8 z-50 flex items-center bg-[#FDFBF7] px-6 py-3 rounded-lg border-2 border-gray-400 shadow-[4px_4px_0_#9ca3af]">
+             <div className={`mr-4 text-3xl ${isPlaying ? 'animate-spin' : ''}`}>💿</div>
+             <div className="flex flex-col mr-8">
+               <span className="text-xs text-gray-500 font-bold tracking-widest">NOW PLAYING</span>
+               <span className="text-lg text-gray-800 font-bold tracking-wider">
                  {mainSong ? mainSong.title : (currentTrackName === 'bg_music.mp3' ? '經典民歌放送中' : (currentTrackName || '').replace('.mp3', ''))}
                </span>
              </div>
-             <button onClick={togglePlayPause} className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded text-gray-800 hover:bg-gray-300 transition-colors border border-gray-400">
+             <button onClick={togglePlayPause} className="w-12 h-12 flex items-center justify-center bg-gray-200 text-2xl rounded text-gray-800 hover:bg-gray-300 border border-gray-400 transition-colors">
                {isPlaying ? 'II' : '▶'}
              </button>
           </div>
@@ -280,15 +304,10 @@ function App() {
           <TrainPage 
             onSelectMode={handleModeSelect} 
             onBack={handleBackToHome} 
-            ticket={ticketData} 
-            cover={coverData} 
-            coverStatus={coverStatus} 
-            swapped={swappedData}
-            faceswapStatus={faceswapStatus}
-            lyrics={lyricsData}
-            recording={recordingData} 
-            onPauseMusic={pauseMusic} 
-            mainSong={mainSong}
+            ticket={ticketData} cover={coverData} coverStatus={coverStatus} 
+            swapped={swappedData} faceswapStatus={faceswapStatus} 
+            lyrics={lyricsData} recording={recordingData} 
+            onPauseMusic={pauseMusic} mainSong={mainSong}
           />
         </div>
       </section>
@@ -296,84 +315,88 @@ function App() {
       <section ref={gameSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/game-bg.jpg')" }}></div>
         <div className="absolute inset-0 bg-black/10 z-0"></div> 
-        <GlobalMoodEffects mood={globalMood} />
         
         <div className="relative z-20 w-full h-full flex flex-col items-center justify-center">
           
           {!activeMode && <div className="text-gray-700 text-2xl font-bold tracking-widest bg-[#F5F5F5] px-8 py-4 rounded-lg shadow border border-gray-300">請先在上方火車選擇一種體驗...</div>}
 
+          {/* ★ 每個車廂內部，不再重複撰寫返回按鈕，統一由最外層包裹 */}
+          
           {activeMode === 'mood-train' && (
-             <div className="w-full h-full">
-               <MoodTrainGame onBack={handleLeaveGame} onMoodDetected={(mood) => setGlobalMood(mood)} onTicketGenerated={(img, finalMood) => { setTicketData({ image: img, mood: finalMood }); handleLeaveGame(); }} />
-             </div>
+            <div className="w-full h-full relative">
+              <UnifiedBackButton onClick={handleLeaveGame} />
+              <MoodTrainGame onMoodDetected={(mood) => setGlobalMood(mood)} onTicketGenerated={(img, finalMood) => { setTicketData({ image: img, mood: finalMood }); handleLeaveGame(); }} />
+            </div>
           )}
 
           {activeMode === 'ar' && (
-             <div className="w-full h-full">
-               <ArGame onBack={() => { playTrack(mainSong ? mainSong.audioFileName : 'bg_music.mp3'); handleLeaveGame(); }} onPreviewSong={(song) => { playTrack(song.audioFileName || song.audioFile); }} onConfirmSong={(song) => { setMainSong(song); playTrack(song.audioFileName || song.audioFile); handleLeaveGame(); }} />
-             </div>
+            <div className="w-full h-full relative">
+              <UnifiedBackButton onClick={() => { playTrack(mainSong ? mainSong.audioFileName : 'bg_music.mp3'); handleLeaveGame(); }} />
+              <ArGame onPreviewSong={(song) => { playTrack(song.audioFileName || song.audioFile); }} onConfirmSong={(song) => { setMainSong(song); playTrack(song.audioFileName || song.audioFile); handleLeaveGame(); }} />
+            </div>
           )}
 
           {activeMode === 'ai-zimage' && (
              <div className="w-full h-full flex flex-col items-center justify-center relative">
                <UnifiedBackButton onClick={handleLeaveGame} />
-               {!mainSong ? <RequireMainSongPrompt /> : (
-                 <AiCoverGame_zimage song={mainSong} onHome={handleLeaveGame} coverStatus={coverStatus} generatedCoverImg={generatedCoverImg} onStartGenerate={handleStartGenerateCover} onSetMockCover={(url) => { setGeneratedCoverImg(url); setCoverStatus('done'); }} onCoverGenerated={(img) => { setCoverData({ image: img, title: mainSong.title }); setCoverStatus('idle'); handleLeaveGame(); }} />
-               )}
+               {!mainSong ? <RequireMainSongPrompt /> : <AiCoverGame_zimage song={mainSong} onHome={handleLeaveGame} coverStatus={coverStatus} generatedCoverImg={generatedCoverImg} onStartGenerate={handleStartGenerateCover} onSetMockCover={(url) => { setGeneratedCoverImg(url); setCoverStatus('done'); }} onCoverGenerated={(img) => { setCoverData({ image: img, title: mainSong.title }); setCoverStatus('idle'); handleLeaveGame(); }} />}
              </div>
           )}
 
           {activeMode === 'faceswap' && (
             <div className="w-full h-full relative flex flex-col items-center justify-center">
               <UnifiedBackButton onClick={handleLeaveGame} />
-              {!mainSong ? <RequireMainSongPrompt /> : (
-                <FaceSwapGame song={mainSong} onHome={handleLeaveGame} faceswapStatus={faceswapStatus} generatedSwappedImg={generatedSwappedImg} onStartGenerate={handleStartFaceSwap} onSetMockSwap={(url) => { setGeneratedSwappedImg(url); setFaceswapStatus('done'); }} onSwapGenerated={(img) => { setSwappedData({ image: img, title: mainSong.title }); setFaceswapStatus('idle'); handleLeaveGame(); }} />
-              )}
+              {!mainSong ? <RequireMainSongPrompt /> : <FaceSwapGame song={mainSong} onHome={handleLeaveGame} faceswapStatus={faceswapStatus} generatedSwappedImg={generatedSwappedImg} onStartGenerate={handleStartFaceSwap} onSetMockSwap={(url) => { setGeneratedSwappedImg(url); setFaceswapStatus('done'); }} onSwapGenerated={(img) => { setSwappedData({ image: img, title: mainSong.title }); setFaceswapStatus('idle'); handleLeaveGame(); }} />}
             </div>
           )}
 
           {activeMode === 'lyrics' && (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
-              {!mainSong ? <RequireMainSongPrompt /> : (
-                <LyricsGame song={mainSong} onRestart={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} onLyricsGenerated={(data) => setLyricsData(data)} />
-              )}
+              <UnifiedBackButton onClick={handleLeaveGame} />
+              {!mainSong ? <RequireMainSongPrompt /> : <LyricsGame song={mainSong} onRestart={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} onLyricsGenerated={(data) => setLyricsData(data)} />}
             </div>
           )}
 
           {activeMode === 'sing-along' && (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
-              {!mainSong ? <RequireMainSongPrompt /> : (
-                <SingAlongGame 
-                  song={mainSong} 
-                  onHome={handleLeaveGame} 
-                  onRecordingComplete={(audioUrl) => {
-                    if (audioUrl) setRecordingData({ audioUrl, title: mainSong.title });
-                    handleLeaveGame();
-                  }}
-                />
-              )}
+              <UnifiedBackButton onClick={handleLeaveGame} />
+              {!mainSong ? <RequireMainSongPrompt /> : <SingAlongGame song={mainSong} onHome={handleLeaveGame} onRecordingComplete={(audioUrl) => { if (audioUrl) setRecordingData({ audioUrl, title: mainSong.title }); handleLeaveGame(); }} />}
             </div>
           )}
 
           {activeMode === 'capsule' && (
              <div className="w-full h-full flex flex-col items-center justify-center relative">
-               {!mainSong ? <RequireMainSongPrompt /> : (
-                 // ★ 將所有的收集品資料傳入 CapsuleGame
-                 <CapsuleGame 
-                   song={mainSong} 
-                   ticket={ticketData}
-                   cover={coverData}
-                   swapped={swappedData}
-                   lyrics={lyricsData}
-                   recording={recordingData}
-                   onBack={() => handleModeSelect({ id: 'ar' })} 
-                   onHome={handleLeaveGame} 
-                 />
-               )}
+               <UnifiedBackButton onClick={handleLeaveGame} />
+               <button onClick={handleEndJourney} className="absolute top-6 right-8 z-50 px-8 py-3 bg-gray-800 text-white font-bold text-lg rounded-lg border-2 border-black shadow-[4px_4px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#4b5563] transition-all tracking-widest flex items-center">
+                 結束旅程 →
+               </button>
+
+               {!mainSong ? <RequireMainSongPrompt /> : <CapsuleGame song={mainSong} ticket={ticketData} cover={coverData} swapped={swappedData} lyrics={lyricsData} recording={recordingData} onBack={() => handleModeSelect({ id: 'ar' })} onHome={handleLeaveGame} />}
              </div>
           )}
         </div>
       </section>
+
+      <section ref={outroSectionRef} className="h-screen w-full relative shrink-0 overflow-hidden bg-[#EAEAEA]">
+        <div className="absolute inset-0 bg-cover bg-center z-0 opacity-30" style={{ backgroundImage: "url('/train-bg_2.jpg')" }}></div>
+        <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-8">
+          <div className="w-full max-w-3xl bg-[#FDFBF7] p-12 md:p-16 rounded-xl shadow-2xl border-4 border-[#C0B8A3] flex flex-col items-center text-center">
+             <h2 className="text-4xl font-bold text-gray-800 tracking-widest mb-6 border-b-2 border-red-500 pb-4">終點站到了</h2>
+             <p className="text-xl text-gray-700 leading-loose tracking-wider mb-12">
+               這首民歌的旅程在此告一段落，<br/>但台灣的民歌記憶，仍會在我們心中繼續傳唱下去。
+             </p>
+             <div className="flex gap-6 w-full justify-center">
+               <button onClick={handleBackToHome} className="px-8 py-4 bg-[#F5F5F5] text-gray-800 text-lg font-bold tracking-widest border-2 border-gray-400 shadow-[4px_4px_0_#9ca3af] hover:bg-gray-100 hover:translate-y-[2px] hover:shadow-[2px_2px_0_#9ca3af] transition-all">
+                 🏠 回到首頁
+               </button>
+               <button onClick={handleBackToHome} className="px-8 py-4 bg-red-600 text-white text-lg font-bold tracking-widest border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:bg-red-500 hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all">
+                 📝 填寫回饋問卷
+               </button>
+             </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }

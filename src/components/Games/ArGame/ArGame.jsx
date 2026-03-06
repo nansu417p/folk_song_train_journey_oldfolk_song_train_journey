@@ -2,15 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { folkSongs } from '../../../data/folkSongs';
+import CassetteUI from '../../Shared/CassetteUI'; // ★ 引入統一卡帶元件
 
-const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
+const ArGame = ({ onConfirmSong, onPreviewSong }) => {
   const webcamRef = useRef(null);
   
   const [handLandmarker, setHandLandmarker] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCameraActive, setIsCameraActive] = useState(true);
 
-  // 卡帶的物理屬性與 DOM Ref 分離
   const cassetteRefs = useRef([]);
   const fingerDomRef = useRef(null);
   
@@ -39,7 +39,6 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
   const [playingSong, setPlayingSong] = useState(null); 
   const [showHint, setShowHint] = useState(true);
 
-  // 儲存 callbacks 避免 useEffect 重啟
   const callbacksRef = useRef({ onPreviewSong });
   useEffect(() => { callbacksRef.current = { onPreviewSong }; }, [onPreviewSong]);
 
@@ -52,12 +51,11 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
       });
       setHandLandmarker(landmarker);
       setIsLoading(false);
-      setTimeout(() => setShowHint(false), 5000);
+      setTimeout(() => setShowHint(false), 6000);
     };
     initLandmarker();
   }, []);
 
-  // 物理與手勢迴圈
   useEffect(() => {
     if (!isCameraActive || !handLandmarker) return;
 
@@ -86,7 +84,6 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
 
       els.forEach(el => {
         if (el.id === currentGrab) return; 
-        
         el.x += el.vx;
         el.y += el.vy;
         
@@ -96,7 +93,6 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
         if (el.y > 65) { el.y = 65; el.vy = -Math.abs(el.vy); } 
       });
 
-      // 彈性碰撞
       for (let i = 0; i < els.length; i++) {
         for (let j = i + 1; j < els.length; j++) {
           let e1 = els[i];
@@ -135,11 +131,9 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
         }
 
         if (isInPlayerZone) {
-          // ★ 關鍵修復：取得「最原始」的 folkSong 物件傳給 App.jsx
           const originalSong = folkSongs.find(s => s.id === currentGrab);
-          
           if (originalSong) {
-            setPlayingSong(originalSong);
+            setPlayingSong({ ...originalSong, color: grabbedEl.color });
             if (callbacksRef.current.onPreviewSong) {
               callbacksRef.current.onPreviewSong(originalSong);
             }
@@ -156,19 +150,18 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
           }
         }
       } else {
-        const hitElement = els.find(el => Math.hypot(el.x - fX, el.y - fY) < 10);
+        const hitElement = els.find(el => Math.hypot(el.x - fX, el.y - fY) < 12);
         if (hitElement && fX !== 0) {
           grabbedIdRef.current = hitElement.id;
         }
       }
 
-      // 直接操作 DOM 更新卡帶位置
       els.forEach((el, i) => {
         if (cassetteRefs.current[i]) {
           const isGrabbed = currentGrab === el.id;
           cassetteRefs.current[i].style.left = `${el.x}%`;
           cassetteRefs.current[i].style.top = `${el.y}%`;
-          cassetteRefs.current[i].style.transform = `translate(-50%, -50%) scale(${isGrabbed ? 1.25 : 1})`;
+          cassetteRefs.current[i].style.transform = `translate(-50%, -50%) scale(${isGrabbed ? 1.1 : 1})`;
           cassetteRefs.current[i].style.zIndex = isGrabbed ? 50 : 10;
         }
       });
@@ -200,51 +193,45 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
     setTimeout(() => setParticles([]), 1500); 
   };
 
-  const handleBackClick = () => {
-    setIsCameraActive(false); 
-    onBack();
-  };
-
   const handleConfirmClick = () => {
     setIsCameraActive(false); 
     onConfirmSong(playingSong); 
   };
 
   return (
-    <div className="relative w-full h-full bg-gray-900 overflow-hidden select-none border-4 border-gray-600 rounded-lg shadow-2xl">
+    <div className="relative w-full h-full bg-gray-900 overflow-hidden select-none border-[6px] border-gray-800 rounded-xl shadow-2xl">
       
-      <button 
-        onClick={handleBackClick} 
-        className="absolute top-6 left-6 z-50 px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border border-gray-300 hover:bg-gray-200 hover:-translate-y-1 transition-all duration-300 tracking-wide pointer-events-auto"
-      >
-        ← 返回火車
-      </button>
+      <div className="absolute top-6 left-0 w-full flex justify-center pointer-events-none z-40">
+         <div className="bg-[#FDFBF7]/90 backdrop-blur px-8 py-3 rounded-lg border-4 border-gray-800 shadow-[6px_6px_0_#4b5563]">
+            <h2 className="text-3xl font-bold text-gray-800 tracking-widest m-0">捕捉民歌</h2>
+         </div>
+      </div>
 
       {playingSong && (
         <button 
           onClick={handleConfirmClick} 
-          className="absolute top-6 right-6 z-50 px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow-xl hover:bg-red-500 hover:-translate-y-1 transition-all duration-300 tracking-widest pointer-events-auto border-2 border-red-400 animate-pulse"
+          className="absolute top-6 right-8 z-50 px-8 py-3 bg-red-600 text-white font-bold text-lg rounded-lg border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all tracking-widest pointer-events-auto animate-pulse"
         >
           ✅ 確認歌曲並返回
         </button>
       )}
 
       {isLoading && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#F5F5F5] text-gray-800">
-          <div className="w-16 h-16 border-8 border-gray-300 border-t-gray-600 rounded-full animate-spin mb-6"></div>
-          <p className="animate-pulse text-2xl font-bold tracking-widest">AR 引擎與空間掃描中...</p>
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#FDFBF7] text-gray-800">
+          <div className="w-16 h-16 border-8 border-gray-300 border-t-red-600 rounded-full animate-spin mb-6"></div>
+          <p className="animate-pulse text-2xl font-bold tracking-widest border-b-2 border-red-500 pb-2">AR 引擎與空間掃描中...</p>
         </div>
       )}
 
       {isCameraActive && (
-        <Webcam ref={webcamRef} className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] opacity-70" audio={false} />
+        <Webcam ref={webcamRef} className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] opacity-60" audio={false} />
       )}
 
       <div className="absolute inset-0 pointer-events-none">
         
         {showHint && !isLoading && (
-          <div className="absolute top-24 left-0 w-full text-center animate-bounce z-40">
-            <span className="bg-[#F5F5F5] text-gray-800 border border-gray-300 px-6 py-3 rounded-lg shadow-lg font-bold tracking-widest">
+          <div className="absolute top-32 left-0 w-full text-center animate-bounce z-40">
+            <span className="bg-[#FDFBF7] text-gray-800 border-4 border-gray-800 px-6 py-3 rounded-lg shadow-[4px_4px_0_#4b5563] font-bold tracking-widest text-lg">
               👆 食指觸碰空中卡帶，拖入下方收音機
             </span>
           </div>
@@ -255,51 +242,49 @@ const ArGame = ({ onBack, onConfirmSong, onPreviewSong }) => {
                style={{ left: `${p.x + p.vx * 10}%`, top: `${p.y + p.vy * 10}%`, opacity: 0 }} />
         ))}
 
+        {/* 漂浮卡帶 */}
         {elementsDataRef.current.map((el, i) => (
           <div 
             key={el.id} 
             ref={node => cassetteRefs.current[i] = node} 
-            className={`absolute flex flex-col items-center justify-center transition-transform duration-100`} 
+            className="absolute flex flex-col items-center justify-center transition-transform duration-100" 
             style={{ left: `${el.x}%`, top: `${el.y}%`, transform: 'translate(-50%, -50%)' }}
           >
-            <div className={`w-32 h-20 ${el.color} rounded-lg border-4 border-gray-800 shadow-xl flex flex-col items-center justify-between p-2 relative bg-opacity-90 backdrop-blur-sm`}>
-              <div className="w-full h-3 bg-white/30 rounded-sm mb-1"></div>
-              <span className="text-white font-bold text-sm drop-shadow-md tracking-wider z-10 whitespace-nowrap">{el.title}</span>
-              <div className="flex w-full justify-center gap-4 mt-1 opacity-80">
-                 <div className="w-5 h-5 bg-gray-800 rounded-full border-2 border-gray-300 flex items-center justify-center"><div className="w-1 h-1 bg-white rounded-full"></div></div>
-                 <div className="w-5 h-5 bg-gray-800 rounded-full border-2 border-gray-300 flex items-center justify-center"><div className="w-1 h-1 bg-white rounded-full"></div></div>
-              </div>
-            </div>
+            {/* ★ 統一卡帶，設為 small 尺寸 (約原本 0.75倍) */}
+            <CassetteUI title={el.title} color={el.color} size="small" />
           </div>
         ))}
 
         {!isLoading && (
           <div 
             ref={fingerDomRef}
-            className={`absolute w-6 h-6 rounded-full border-2 border-[#F5F5F5] shadow-[0_0_10px_rgba(0,0,0,0.3)] transition-colors duration-150`} 
+            className="absolute w-8 h-8 rounded-full border-4 border-[#FDFBF7] shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-colors duration-150" 
             style={{ left: '-100%', top: '-100%', transform: 'translate(-50%, -50%)' }}
           ></div>
         )}
 
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-[400px] h-[160px]">
-          <div className="w-full h-full bg-[#EAEAEA] rounded-t-3xl border-t-[12px] border-x-[12px] border-gray-400 flex flex-col items-center justify-end pb-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] relative">
-            <div className="absolute top-2 w-64 h-4 bg-black/30 rounded-full blur-[2px]"></div>
-            <div className={`w-72 h-24 border-4 rounded-xl flex flex-col items-center justify-center transition-colors duration-500 relative overflow-hidden shadow-inner ${playingSong ? 'bg-[#EAF4E2] border-[#2A9D8F]' : 'bg-gray-800 border-gray-600'}`}>
+        {/* ★ 下方播放器縮小至 350px 寬度，並保留原卡帶黑邊 */}
+        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-[350px] h-[180px]">
+          <div className="w-full h-full bg-[#EAEAEA] rounded-t-3xl border-t-[10px] border-x-[10px] border-gray-800 flex flex-col items-center justify-end pb-6 shadow-[0_-10px_30px_rgba(0,0,0,0.6)] relative overflow-hidden">
+            <div className="absolute top-2 w-48 h-3 bg-black/40 rounded-full blur-[2px]"></div>
+            
+            {/* 播放槽 */}
+            <div className={`w-[220px] h-[130px] rounded-xl flex flex-col items-center justify-center transition-colors duration-500 relative overflow-hidden ${playingSong ? 'bg-[#111]' : 'bg-gray-800 border-4 border-gray-900 shadow-inner'}`}>
               {playingSong ? (
-                <div className="z-10 text-center">
-                  <div className="text-[#2A9D8F] text-[10px] tracking-[0.3em] mb-1 font-bold animate-pulse">NOW PLAYING</div>
-                  <div className="text-gray-800 font-bold text-2xl tracking-widest">{playingSong.title}</div>
+                <div className="animate-fade-in-up transform scale-[0.8] origin-center mt-2">
+                  <CassetteUI title={playingSong.title} color={playingSong.color} size="normal" />
                 </div>
               ) : (
-                <div className="text-gray-400 font-bold text-sm tracking-widest flex items-center gap-2">
-                  <span className="text-2xl animate-bounce">↓</span> 投入卡帶播放
+                <div className="text-gray-400 font-bold text-sm tracking-widest flex items-center gap-2 border-2 border-dashed border-gray-600 w-full h-full justify-center rounded-xl">
+                  <span className="text-2xl animate-bounce">↓</span> 投入卡帶
                 </div>
               )}
             </div>
-            <div className="flex gap-2 mt-4">
-               <div className="w-10 h-3 bg-gray-400 rounded-sm"></div>
-               <div className="w-10 h-3 bg-gray-400 rounded-sm"></div>
-               <div className="w-10 h-3 bg-red-400 rounded-sm"></div>
+
+            <div className="flex gap-3 mt-4">
+               <div className="w-8 h-3 bg-gray-500 rounded-sm border-2 border-gray-700 shadow-inner"></div>
+               <div className="w-8 h-3 bg-gray-500 rounded-sm border-2 border-gray-700 shadow-inner"></div>
+               <div className="w-8 h-3 bg-red-600 rounded-sm border-2 border-red-800 shadow-inner"></div>
             </div>
           </div>
         </div>
