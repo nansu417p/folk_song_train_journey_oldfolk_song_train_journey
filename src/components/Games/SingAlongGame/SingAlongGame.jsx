@@ -11,18 +11,35 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
   const [liveTranscript, setLiveTranscript] = useState(""); 
   
   const [activeLineIndex, setActiveLineIndex] = useState(0); 
-  const [glowingLineIndex, setGlowingLineIndex] = useState(-1); 
   const [sungLines, setSungLines] = useState(new Set()); 
   const [isFinished, setIsFinished] = useState(false); 
+  const [hasStarted, setHasStarted] = useState(false); 
   
   const audioRef = useRef(null);
   const recognitionRef = useRef(null);
   const lyricsContainerRef = useRef(null);
-  const glowTimeoutRef = useRef(null);
   const lyricRefs = useRef([]);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  const activeLineIndexRef = useRef(0);
+  const sungLinesRef = useRef(new Set());
+  const isPlayingRef = useRef(false);
+  const lastMatchTimeRef = useRef(0);
+  
+  // ★ 核心修復 1：字詞緩衝區，精準記錄「當前句子」已經唱過哪些字
+  // 結構會像這樣：['看', '日', '落', ...]
+  const matchedWordsInCurrentLineRef = useRef([]); 
+
+  const startRecognitionRef = useRef(null);
+  const restartIntervalRef = useRef(null);
+
+  useEffect(() => {
+    activeLineIndexRef.current = activeLineIndex;
+    sungLinesRef.current = sungLines;
+    isPlayingRef.current = isPlaying;
+  }, [activeLineIndex, sungLines, isPlaying]);
 
   useEffect(() => {
     if (song) {
@@ -32,10 +49,45 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
       setActiveLineIndex(0);
       setSungLines(new Set());
       setIsFinished(false);
+      setHasStarted(false);
       audioChunksRef.current = []; 
       lyricRefs.current = new Array(lines.length).fill(null);
+      
+      activeLineIndexRef.current = 0;
+      sungLinesRef.current = new Set();
+      isPlayingRef.current = false;
+      lastMatchTimeRef.current = 0;
+      matchedWordsInCurrentLineRef.current = [];
     }
   }, [song]);
+
+  const stopAllMedia = () => {
+    isPlayingRef.current = false; 
+    setIsPlaying(false);
+    setIsListening(false);
+
+    if (restartIntervalRef.current) {
+      clearInterval(restartIntervalRef.current);
+    }
+
+    if (recognitionRef.current) {
+      recognitionRef.current.onstart = null;
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.onerror = null; 
+      recognitionRef.current.onend = null; 
+      try { recognitionRef.current.abort(); } catch(e) {}
+    }
+    
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch(e) {}
+      }
+      if (mediaRecorderRef.current.stream) {
+         mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+    }
+    if (audioRef.current) audioRef.current.pause();
+  };
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -46,112 +98,193 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;       
-    recognition.interimResults = true;   
-    recognition.lang = 'zh-TW';          
-
-    if (SpeechGrammarList && lyricsLines.length > 0) {
-      const speechRecognitionList = new SpeechGrammarList();
-      const uniqueWords = Array.from(new Set(lyricsLines.join('').replace(/[^\u4e00-\u9fa5]/g, '').split('')));
-      const grammar = '#JSGF V1.0; grammar lyrics; public <lyric> = ' + uniqueWords.join(' | ') + ' ;';
-      speechRecognitionList.addFromString(grammar, 1);
-      recognition.grammars = speechRecognitionList;
-    }
-
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        transcript += event.results[i][0].transcript;
+    startRecognitionRef.current = () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        try { recognitionRef.current.abort(); } catch(e) {}
       }
-      
-      setLiveTranscript(transcript);
-      const cleanTranscript = transcript.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
 
-      if (cleanTranscript.length >= 2 && lyricsLines.length > 0) {
-        let matchFound = false;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;       
+      recognition.interimResults = true;   
+      recognition.lang = 'zh-TW';          
+
+      if (SpeechGrammarList && lyricsLines.length > 0) {
+        const speechRecognitionList = new SpeechGrammarList();
+        const uniqueWords = Array.from(new Set(lyricsLines.join('').replace(/[^\u4e00-\u9fa5]/g, '').split('')));
+        const grammar = '#JSGF V1.0; grammar lyrics; public <lyric> = ' + uniqueWords.join(' | ') + ' ;';
+        try {
+            speechRecognitionList.addFromString(grammar, 1);
+            recognition.grammars = speechRecognitionList;
+        } catch(e) {}
+      }
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
         
-        const startIndex = activeLineIndex; 
-        const endIndex = Math.min(lyricsLines.length, activeLineIndex + 5);
-        
-        for (let i = startIndex; i < endIndex; i++) {
-          const targetText = lyricsLines[i].replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+        setLiveTranscript(transcript);
+        const cleanTranscript = transcript.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+
+        if (cleanTranscript.length >= 2 && lyricsLines.length > 0) {
           
-          let isStrictMatch = false;
-          for (let j = 0; j < cleanTranscript.length - 1; j++) {
-            if (targetText.includes(cleanTranscript.substring(j, j + 2))) {
-              isStrictMatch = true;
-              break;
+          const currentActive = activeLineIndexRef.current;
+          const currentSung = sungLinesRef.current;
+          const now = Date.now();
+
+          // 2.5 秒的冷卻機制
+          if (now - lastMatchTimeRef.current < 2500) {
+             return; 
+          }
+
+          // ★ 核心修復 1：精準比對邏輯
+          const startIndex = currentActive; 
+          const endIndex = Math.min(lyricsLines.length, currentActive + 2);
+          
+          let matchedIndex = -1;
+
+          for (let i = startIndex; i < endIndex; i++) {
+            // 如果是在檢查「下一句」，但它已經被標記為已唱（通常不會發生，除非手動跳轉），則略過
+            if (i > currentActive && currentSung.has(i)) continue; 
+
+            // 目標歌詞
+            const targetText = lyricsLines[i].replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+            if (targetText.length === 0) continue;
+
+            let isMatch = false;
+
+            // 檢查是否有「連續兩個字」相符
+            for (let j = 0; j < cleanTranscript.length - 1; j++) {
+               const twoChars = cleanTranscript.substring(j, j + 2);
+               
+               // 如果目標歌詞包含這兩個字
+               if (targetText.includes(twoChars)) {
+                 // 如果我們正在檢查「目前這句」(i === currentActive)
+                 if (i === currentActive) {
+                    // 檢查這兩個字是不是「已經被配對過了」
+                    const char1AlreadyMatched = matchedWordsInCurrentLineRef.current.includes(twoChars[0]);
+                    const char2AlreadyMatched = matchedWordsInCurrentLineRef.current.includes(twoChars[1]);
+                    
+                    // 如果還沒被配對過，代表這是當前句子的「新」進度
+                    if (!char1AlreadyMatched || !char2AlreadyMatched) {
+                       // 記錄這兩個字已配對
+                       matchedWordsInCurrentLineRef.current.push(twoChars[0], twoChars[1]);
+                       isMatch = true;
+                       console.log(`在第 ${i} 句配對到未唱過的字: ${twoChars}`);
+                       break;
+                    } else {
+                       // 這兩個字在當前句子已經被標記過，代表可能是下一句的重複詞！
+                       console.log(`第 ${i} 句的 "${twoChars}" 已唱過，略過配對。`);
+                       continue; // 繼續外層迴圈找下一句
+                    }
+                 } else {
+                    // 如果我們是在檢查「下一句」(i > currentActive)，直接算配對成功
+                    isMatch = true;
+                    console.log(`在第 ${i} 句(下一句)配對到: ${twoChars}`);
+                    break;
+                 }
+               }
+            }
+
+            if (isMatch) {
+              matchedIndex = i;
+              break; 
             }
           }
 
-          let isFuzzyMatch = false;
-          if (!isStrictMatch) {
-            const heardSet = new Set(cleanTranscript.split(''));
-            let overlapCount = 0;
-            heardSet.forEach(char => {
-              if (targetText.includes(char)) overlapCount++;
-            });
-            if (overlapCount >= 3) {
-              isFuzzyMatch = true;
-            }
-          }
-          
-          if ((isStrictMatch || isFuzzyMatch) && !sungLines.has(i)) {
-            
-            setActiveLineIndex(i);
-            setGlowingLineIndex(i);
-            setSungLines(prev => {
-              const newSet = new Set(prev);
-              for(let k=0; k<=i; k++) newSet.add(k); 
-              return newSet;
-            });
-
-            if (lyricsContainerRef.current && lyricRefs.current[i]) {
-              const container = lyricsContainerRef.current;
-              const targetNode = lyricRefs.current[i];
+          // 如果成功配對到「下一句」
+          if (matchedIndex !== -1 && matchedIndex > currentActive) {
+              lastMatchTimeRef.current = Date.now();
+              setActiveLineIndex(matchedIndex);
               
-              const containerHalf = container.clientHeight / 2;
-              const nodeHalf = targetNode.clientHeight / 2;
-              const scrollTarget = targetNode.offsetTop - containerHalf + nodeHalf;
+              setSungLines(prev => {
+                const newSet = new Set(prev);
+                for(let k=0; k<=matchedIndex; k++) newSet.add(k); 
+                return newSet;
+              });
               
-              container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-            }
+              activeLineIndexRef.current = matchedIndex;
+              // ★ 跳到下一句時，清空字詞記錄陣列，準備記錄新的一句！
+              matchedWordsInCurrentLineRef.current = [];
 
-            if (glowTimeoutRef.current) clearTimeout(glowTimeoutRef.current);
-            glowTimeoutRef.current = setTimeout(() => setGlowingLineIndex(-1), 2000);
+              if (lyricsContainerRef.current && lyricRefs.current[matchedIndex]) {
+                const container = lyricsContainerRef.current;
+                const targetNode = lyricRefs.current[matchedIndex];
+                const scrollTarget = targetNode.offsetTop - (container.clientHeight / 2) + (targetNode.clientHeight / 2);
+                container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+              }
 
-            if (i >= lyricsLines.length - 2) {
-              setIsFinished(true);
-            }
-
-            matchFound = true;
-            break;
+              if (matchedIndex >= lyricsLines.length - 2) {
+                setIsFinished(true);
+              }
           }
         }
+      };
+
+      recognition.onerror = (event) => {
+        // 隱藏 aborted 報錯，因為這是我們手動重啟時會出現的
+        if (event.error !== 'aborted' && isPlayingRef.current) {
+          console.log('語音辨識發生錯誤:', event.error);
+        }
+      };
+
+      recognition.onend = () => {
+         setIsListening(false);
+      }
+
+      try {
+        recognition.start();
+        recognitionRef.current = recognition;
+        console.log("語音辨識器已啟動");
+      } catch(e) {
+        console.log("啟動辨識失敗", e);
       }
     };
-
-    recognition.onerror = (event) => {
-      console.log('語音辨識發生錯誤:', event.error);
-      if (event.error === 'no-speech' && isPlaying) {
-        try { recognition.start(); } catch(e) {}
-      }
-    };
-
-    recognition.onend = () => {
-      if (isPlaying) {
-         try { recognition.start(); } catch(e) {}
-      }
-    }
-
-    recognitionRef.current = recognition;
 
     return () => {
-      if (recognitionRef.current) recognitionRef.current.stop();
-      if (glowTimeoutRef.current) clearTimeout(glowTimeoutRef.current);
+       stopAllMedia();
     };
-  }, [activeLineIndex, lyricsLines, isPlaying, sungLines]);
+  }, [lyricsLines]); 
+
+  // ★ 核心修復 2：定期重啟機制 (每 15 秒模擬一次手動重啟，突破 60 秒限制)
+  useEffect(() => {
+     if (isPlaying) {
+         console.log("開始背景重啟計時器...");
+         restartIntervalRef.current = setInterval(() => {
+             if (isPlayingRef.current && recognitionRef.current) {
+                 console.log("執行背景無縫重啟...");
+                 // 關閉目前辨識器
+                 try { recognitionRef.current.abort(); } catch(e) {}
+                 
+                 // 給予 50ms 緩衝後重新啟動
+                 setTimeout(() => {
+                    if (isPlayingRef.current && startRecognitionRef.current) {
+                        startRecognitionRef.current();
+                    }
+                 }, 50);
+             }
+         }, 50000); // 15 秒重啟一次
+     } else {
+         if (restartIntervalRef.current) {
+             clearInterval(restartIntervalRef.current);
+             console.log("停止背景重啟計時器");
+         }
+     }
+
+     return () => {
+         if (restartIntervalRef.current) {
+             clearInterval(restartIntervalRef.current);
+         }
+     };
+  }, [isPlaying]);
+
 
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
@@ -165,24 +298,35 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
   };
 
   const togglePlayAndMic = async () => {
+    if (!hasStarted) {
+        setHasStarted(true);
+        // ★ 核心修復 3：第一次點擊播放時，強制將第一句置中
+        if (lyricsContainerRef.current && lyricRefs.current[0]) {
+            setTimeout(() => {
+              const container = lyricsContainerRef.current;
+              const targetNode = lyricRefs.current[0];
+              const scrollTarget = targetNode.offsetTop - (container.clientHeight / 2) + (targetNode.clientHeight / 2);
+              container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+            }, 100);
+        }
+    }
+
     if (isPlaying) {
       audioRef.current.pause();
-      if (recognitionRef.current) recognitionRef.current.stop();
+      if (recognitionRef.current) {
+         recognitionRef.current.onend = null; 
+         try { recognitionRef.current.abort(); } catch(e) {}
+      }
       setIsListening(false);
       setLiveTranscript(""); 
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.pause();
       }
+      setIsPlaying(false);
+      isPlayingRef.current = false;
     } else {
-      audioRef.current.play();
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-          setIsListening(true);
-        } catch (e) {}
-      }
-
+      
       if (!mediaRecorderRef.current) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -195,6 +339,8 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
           mediaRecorder.start();
         } catch (err) {
           console.error("無法取得麥克風錄音權限", err);
+          alert("需要麥克風權限才能進行演唱！");
+          return; 
         }
       } else {
         if (mediaRecorderRef.current.state === 'paused') {
@@ -204,8 +350,16 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
           mediaRecorderRef.current.start();
         }
       }
+
+      isPlayingRef.current = true; 
+
+      if (startRecognitionRef.current) {
+          startRecognitionRef.current();
+      }
+      
+      audioRef.current.play();
+      setIsPlaying(true);
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleProgressClick = (e) => {
@@ -221,6 +375,10 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
       const lastIndex = lyricsLines.length - 1;
       setActiveLineIndex(lastIndex);
       setIsFinished(true);
+      
+      activeLineIndexRef.current = lastIndex;
+      matchedWordsInCurrentLineRef.current = []; // 清空字詞記錄
+      
       if (lyricsContainerRef.current && lyricRefs.current[lastIndex]) {
         const container = lyricsContainerRef.current;
         const targetNode = lyricRefs.current[lastIndex];
@@ -234,8 +392,18 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
     setActiveLineIndex(0);
     setSungLines(new Set());
     setIsFinished(false);
+    
+    activeLineIndexRef.current = 0;
+    sungLinesRef.current = new Set();
+    matchedWordsInCurrentLineRef.current = []; // 清空字詞記錄
+    
     if (audioRef.current) audioRef.current.currentTime = 0;
-    if (lyricsContainerRef.current) lyricsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    if (lyricsContainerRef.current && lyricRefs.current[0]) {
+       const container = lyricsContainerRef.current;
+       const targetNode = lyricRefs.current[0];
+       const scrollTarget = targetNode.offsetTop - (container.clientHeight / 2) + (targetNode.clientHeight / 2);
+       container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+    }
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
        mediaRecorderRef.current.stop();
@@ -249,27 +417,34 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const audioUrl = URL.createObjectURL(audioBlob);
+          stopAllMedia(); 
           onRecordingComplete(audioUrl); 
         } else {
+          stopAllMedia();
           onRecordingComplete(null);
         }
       };
       mediaRecorderRef.current.stop();
     } else {
+      let audioUrl = null;
       if (audioChunksRef.current.length > 0) {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        onRecordingComplete(audioUrl);
-      } else {
-        onRecordingComplete(null);
+        audioUrl = URL.createObjectURL(audioBlob);
       }
+      stopAllMedia();
+      onRecordingComplete(audioUrl);
     }
+  };
+
+  const executeBackToHome = () => {
+     stopAllMedia(); 
+     onHome();
   };
 
   if (!recognitionSupported) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-[#EAEAEA]">
-        <button onClick={onHome} className="absolute top-6 left-6 z-50 px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border hover:bg-gray-200">← 返回火車</button>
+        <button onClick={executeBackToHome} className="absolute top-6 left-6 z-50 px-5 py-2.5 bg-[#F5F5F5] text-gray-800 font-bold rounded-lg shadow border hover:bg-gray-200">← 返回火車</button>
         <div className="bg-white p-10 rounded-lg shadow-xl text-center">
           <h2 className="text-3xl font-bold text-red-600 mb-4">無法啟動麥克風</h2>
           <p className="text-gray-600">您的瀏覽器不支援語音辨識功能，請使用 Chrome 或 Edge 瀏覽器開啟。</p>
@@ -282,7 +457,7 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
     <div className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-transparent pt-16 pb-8 px-8">
       
       <div className="absolute top-6 right-8 z-50 flex gap-4">
-        <button onClick={onHome} className="px-6 py-3 bg-red-600 text-white font-bold rounded-lg border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all tracking-wide">
+        <button onClick={handleFinishAndSave} className="px-6 py-3 bg-red-600 text-white font-bold rounded-lg border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all tracking-wide">
           提前結束演唱
         </button>
       </div>
@@ -293,7 +468,11 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
          onTimeUpdate={handleTimeUpdate}
          onEnded={() => { 
            setIsPlaying(false); 
-           if(recognitionRef.current) recognitionRef.current.stop(); 
+           isPlayingRef.current = false;
+           if(recognitionRef.current) {
+               recognitionRef.current.onend = null;
+               try { recognitionRef.current.abort(); } catch(e) {}
+           }
            setIsListening(false); 
            setIsFinished(true); 
            if(mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') mediaRecorderRef.current.pause();
@@ -303,10 +482,18 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
 
       <div className="w-full max-w-5xl h-full flex flex-col bg-[#E0D8C3] rounded-xl shadow-2xl border-4 border-[#C0B8A3] overflow-hidden relative mt-8">
           
+          {!hasStarted && (
+             <div className="absolute top-4 right-1/4 z-50 flex flex-col items-center animate-bounce pointer-events-none">
+                <div className="bg-yellow-400 text-gray-900 font-bold px-6 py-2 rounded-full shadow-[2px_2px_0_#ca8a04] tracking-widest text-base border-2 border-yellow-600">
+                  點擊播放，開始您的專屬錄音！
+                </div>
+                <div className="w-4 h-4 bg-yellow-400 border-b-2 border-r-2 border-yellow-600 transform rotate-45 -mt-2 z-[-1]"></div>
+             </div>
+          )}
+
           <div className="w-full bg-[#D64F3E] p-4 px-6 flex justify-between items-center shadow-md z-20 border-b-4 border-[#B83E2F]">
              <div className="flex items-center gap-4 min-w-[200px]">
                
-               {/* ★ 改用真實卡帶圖標 */}
                <div className="flex items-center justify-center mr-2">
                  <img src="/images/cassette.png" alt="Cassette" className="w-12 h-8 object-contain drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]" />
                </div>
@@ -345,7 +532,6 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
 
                 {lyricsLines.map((line, index) => {
                   const isActive = index === activeLineIndex;
-                  const isHit = index === glowingLineIndex;
                   const isSung = sungLines.has(index); 
                   
                   return (
@@ -354,14 +540,13 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
                       ref={el => lyricRefs.current[index] = el}
                       className={`
                         relative text-2xl md:text-3xl font-serif tracking-widest transition-all duration-500 text-center px-6 py-2 rounded-lg min-h-[3rem] flex items-center justify-center shrink-0
-                        ${isHit ? 'text-yellow-600 bg-yellow-100/50 shadow-[0_0_15px_rgba(250,204,21,0.4)] scale-110 font-bold border-2 border-yellow-400 z-20' : 
-                          isActive ? 'text-gray-800 scale-105 font-bold z-10' : 
+                        ${isActive ? 'text-yellow-600 bg-yellow-100/50 shadow-[0_0_15px_rgba(250,204,21,0.4)] scale-110 font-bold border-2 border-yellow-400 z-20' : 
                           isSung ? 'text-green-700/60 opacity-60 scale-95' : 'text-gray-400 opacity-80 font-bold'}
                       `}
                     >
                       {isSung && !isActive && <span className="absolute -left-6 text-green-600/50 text-xl font-sans">✓</span>}
                       {line}
-                      {isHit && <span className="absolute -top-4 -right-2 text-yellow-500 text-2xl animate-bounce drop-shadow">🎵</span>}
+                      {isActive && <span className="absolute -top-4 -right-2 text-yellow-500 text-2xl animate-bounce drop-shadow">🎵</span>}
                     </div>
                   );
                 })}

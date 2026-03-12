@@ -211,7 +211,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
       </div>
       
       <div className="text-center z-10 pointer-events-none mt-auto mb-2 shrink-0">
-        <h2 className="text-5xl font-bold mb-2 text-gray-800 drop-shadow-md tracking-widest">選擇旅程方式</h2>
+        <h2 className="text-5xl font-bold mb-2 text-gray-800 drop-shadow-md tracking-widest">點擊車箱開始旅程</h2>
         <p className="text-gray-700 font-bold text-xl drop-shadow tracking-wider">按住滑鼠左右拖曳火車</p>
       </div>
 
