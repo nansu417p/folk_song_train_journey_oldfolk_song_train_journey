@@ -83,7 +83,7 @@ const FaceSwapGame = ({ song, onHome, faceswapStatus, generatedSwappedImg, onSta
           {faceswapStatus === 'generating' ? (
              <div className="w-full h-full flex flex-col items-center justify-center text-center animate-pulse gap-6">
                 <div className="w-16 h-16 border-8 border-gray-300 border-t-red-600 rounded-full animate-spin"></div>
-                <h3 className="text-2xl font-bold text-gray-800 tracking-widest">暗房融合中...</h3>
+                <h3 className="text-2xl font-bold text-gray-800 tracking-widest">封面融合中...</h3>
                 <p className="text-gray-600 leading-relaxed font-bold">正在處理您的五官，約需 5 ~ 10 秒。<br/>您可以先回火車大廳等待，好了會提醒您！</p>
                 {/* ★ 補回返回按鈕 */}
                 <button onClick={onHome} className="w-[80%] py-4 mt-4 bg-gray-800 text-white font-bold rounded-lg border-2 border-black shadow-[4px_4px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#4b5563] transition-all tracking-widest">
@@ -93,14 +93,14 @@ const FaceSwapGame = ({ song, onHome, faceswapStatus, generatedSwappedImg, onSta
           ) : faceswapStatus === 'done' && generatedSwappedImg ? (
              <div className="w-full h-full flex flex-col items-center animate-fade-in-up">
                 <h3 className="text-xl font-bold text-gray-800 mb-4 border-b-2 border-gray-800 pb-2 w-full text-center tracking-widest">
-                  您的專屬寫真
+                  您的專屬封面
                 </h3>
                 <div className="w-full relative shadow-xl border-4 border-white bg-gray-200 flex-1 flex items-center justify-center overflow-hidden" style={{ aspectRatio: '1024/720' }}>
                   <img src={generatedSwappedImg} alt="Swapped" className="w-full h-full object-contain" />
                 </div>
                 <div className="mt-6 w-full flex justify-center">
                   <button onClick={handleClaim} disabled={isClaiming} className="w-[80%] py-4 bg-red-600 text-white rounded-lg font-bold border-2 border-red-800 shadow-[4px_4px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#7f1d1d] transition-all tracking-widest text-lg disabled:opacity-50">
-                    {isClaiming ? "⏳ 封裝中..." : "🎫 領取專屬寫真"}
+                    {isClaiming ? "⏳ 封裝中..." : "🎫 領取專屬封面"}
                   </button>
                 </div>
              </div>
@@ -149,7 +149,7 @@ const FaceSwapGame = ({ song, onHome, faceswapStatus, generatedSwappedImg, onSta
                     onClick={() => onSetMockSwap(`/images/${song.audioFileName.replace('.mp3', '.jpg')}`)}
                     className="px-6 py-4 bg-[#FDFBF7] text-gray-800 font-bold rounded-lg border-2 border-gray-400 shadow-[4px_4px_0_#9ca3af] hover:bg-gray-100 hover:translate-y-[2px] hover:shadow-[2px_2px_0_#9ca3af] transition-all tracking-widest"
                   >
-                    測試
+                    預設封面
                   </button>
                 </div>
              </div>

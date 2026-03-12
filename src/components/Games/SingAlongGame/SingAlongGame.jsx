@@ -499,7 +499,7 @@ const SingAlongGame = ({ song, onHome, onRecordingComplete }) => {
                </div>
 
                <div className="flex flex-col">
-                 <span className="text-white/80 text-[10px] tracking-widest font-bold">SING ALONG</span>
+                 <span className="text-white/80 text-[10px] tracking-widest font-bold"></span>
                  <div className="flex items-baseline gap-3">
                    <h2 className="text-[#F5F5F5] text-xl font-bold tracking-widest font-serif drop-shadow">{song.title}</h2>
                    <span className="text-white/80 text-sm font-serif tracking-wider">{song.singer}</span>

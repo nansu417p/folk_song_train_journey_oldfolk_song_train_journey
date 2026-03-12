@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { gameModes } from '../../data/gameModes';
-import TicketCard from '../Shared/TicketCard';
+// ★ 引入共用的 TicketCard
+import { TicketCard } from '../Games/MoodTrainGame/MoodTrainGame'; 
 import CassetteUI from '../Shared/CassetteUI';
 
 const CustomAudioPlayer = ({ src, onPlayCallback }) => {
@@ -48,8 +49,8 @@ const CustomAudioPlayer = ({ src, onPlayCallback }) => {
         
         <div className="flex-1 flex flex-col gap-2">
            <div className="flex justify-between text-xs text-gray-500 font-bold tracking-widest px-1">
-              <span>VOICE RECORDING</span>
-              <span>{isPlaying ? 'PLAYING...' : 'READY'}</span>
+             <span>VOICE RECORDING</span>
+             <span>{isPlaying ? 'PLAYING...' : 'READY'}</span>
            </div>
            <div 
              className="w-full h-4 bg-gray-300 rounded-full border border-gray-400 overflow-hidden cursor-pointer relative shadow-inner" 
@@ -63,7 +64,7 @@ const CustomAudioPlayer = ({ src, onPlayCallback }) => {
   );
 };
 
-const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, faceswapStatus, lyrics, recording, mainSong, onPauseMusic }) => {
+const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, faceswapStatus, lyrics, recording, mainSong, onPauseMusic }, ref) => {
   const scrollRef = useRef(null);
   const [lightbox, setLightbox] = useState(null); 
   
@@ -71,6 +72,32 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const dragThreshold = useRef(0); 
+
+  const scrollToFirstCarriage = () => {
+    if (!scrollRef.current) return;
+    const containerWidth = scrollRef.current.offsetWidth;
+    const carriageWidth = 525;
+    const headWidth = 525;
+    const paddingLeft = 80; 
+    
+    const target = (paddingLeft + headWidth) - (containerWidth / 2) + (carriageWidth / 2);
+    
+    scrollRef.current.scrollTo({
+        left: target,
+        behavior: 'smooth'
+    });
+  };
+
+  useImperativeHandle(ref, () => ({
+    resetTrainPosition: () => {
+      scrollToFirstCarriage();
+    }
+  }));
+
+  useEffect(() => {
+    const timer = setTimeout(scrollToFirstCarriage, 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleMouseDown = (e) => {
     if (!scrollRef.current) return;
@@ -98,9 +125,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
 
   const handleCarriageClick = (mode, e) => {
     const distance = Math.abs(e.pageX - dragThreshold.current);
-    if (distance > 10) {
-      return; 
-    }
+    if (distance > 10) return; 
     onSelectMode(mode);
   };
 
@@ -131,14 +156,13 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
         <h3 className="text-gray-500 font-bold tracking-widest text-sm mb-4 bg-[#FDFBF7]/80 px-4 py-1 rounded-full border border-gray-300 backdrop-blur-sm shadow-sm pointer-events-none mt-2">
           — 您的旅程收集品 —
         </h3>
-
-        <div className="flex flex-row justify-center items-center gap-8 w-full max-w-6xl h-[140px] pointer-events-auto">
-            
+        {/* ★ 修正 1：加高這裡的容器高度從 140px 到 180px，避免底部被裁切 */}
+        <div className="flex flex-row justify-center items-center gap-8 w-full max-w-6xl h-[140px] pointer-events-auto mt-2">
             {ticket && (
               <motion.div 
                 initial={{ opacity: 0, y: -20, rotate: -5 }} animate={{ opacity: 1, y: 0, rotate: -2 }} whileHover={{ rotate: 0, scale: 1.05 }} 
                 onClick={() => setLightbox({ type: 'ticket', data: ticket })}
-                className="cursor-pointer z-50 drop-shadow-md flex items-center justify-center w-[260px] h-[120px]"
+                className="cursor-pointer z-50 drop-shadow-md flex items-center justify-center w-[300px] h-[150px]" 
               >
                 <div className="relative transform scale-[0.5] origin-center">
                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-yellow-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-2 border border-yellow-200/50"></div>
@@ -153,7 +177,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                 onClick={() => setLightbox({ type: 'cover', data: cover })}
                 className="cursor-pointer z-40 drop-shadow-md w-[170px] flex items-center justify-center"
               >
-                <div className="relative w-full aspect-[1024/720]">
+                <div className="relative w-full aspect-[16/9]">
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#fca5a5]/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[-3deg] border border-red-200/50"></div>
                   <div className="bg-white p-1.5 pb-1 border border-gray-300 flex flex-col pointer-events-none w-full h-full">
                     <img src={cover.image} className="w-full h-full object-cover border border-gray-200" draggable="false" />
@@ -168,7 +192,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                 onClick={() => setLightbox({ type: 'swapped', data: swapped })}
                 className="cursor-pointer z-30 drop-shadow-md w-[170px] flex items-center justify-center"
               >
-                <div className="relative w-full aspect-[1024/720]">
+                <div className="relative w-full aspect-[16/9]">
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-4 bg-[#bae6fd]/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[2deg] border border-blue-200/50"></div>
                   <div className="bg-white p-1.5 pb-1 border border-gray-300 flex flex-col pointer-events-none w-full h-full">
                     <img src={swapped.image} className="w-full h-full object-cover border border-gray-200" draggable="false" />
@@ -184,7 +208,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                 className="cursor-pointer z-20 drop-shadow-md w-[110px] flex items-center justify-center"
               >
                 <div className="relative w-full h-[120px]">
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-4 bg-yellow-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[-2deg] border border-yellow-300/50"></div>
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-12 h-4 bg-yellow-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-[-2deg] border border-yellow-300/50"></div>
                   <div className="bg-[#FDFBF7] p-2 border border-[#C0B8A3] w-full h-full flex flex-col relative overflow-hidden pointer-events-none mt-2">
                      <div className="text-[6px] text-gray-500 leading-tight font-serif whitespace-pre-wrap opacity-70">
                        {lyrics.content.substring(0, 100)}...
@@ -212,7 +236,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
       
       <div className="text-center z-10 pointer-events-none mt-auto mb-2 shrink-0">
         <h2 className="text-5xl font-bold mb-2 text-gray-800 drop-shadow-md tracking-widest">點擊車箱開始旅程</h2>
-        <p className="text-gray-700 font-bold text-xl drop-shadow tracking-wider">按住滑鼠左右拖曳火車</p>
       </div>
 
       <div className="w-full h-[400px] overflow-hidden relative z-10 shrink-0">
@@ -225,7 +248,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
           onMouseMove={handleMouseMove}
         >
           <div className="flex items-end px-20 min-w-max h-[350px] relative">
-            
             <div className="relative w-[525px] h-full flex items-center justify-center shrink-0 z-20 pointer-events-none">
               <img src="/images/train-head.png" alt="train head" className="absolute inset-0 w-full h-full object-contain drop-shadow-2xl" draggable="false" />
             </div>
@@ -250,14 +272,9 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                   ${isLocked ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer'}
                 `}
               >
-                
-                {/* ★ 圖片箭頭設定區 */}
-                {/* - top-[-40px] 控制高度，數字越小(-50px)越高，越大(-20px)越低
-                  - w-12 h-12 控制圖片大小
-                */}
                 {hintModeId === mode.id && !isLocked && (
-                  <div className="absolute top-10  transform -translate-x-1/2 z-50 flex flex-col items-center animate-bounce pointer-events-none mb-1">
-                     <img src="/images/arrow.png" alt="箭頭" className="w-12 h-12 drop-shadow-md" />
+                  <div className="absolute top-10 transform -translate-x-1/2 z-50 flex flex-col items-center animate-bounce pointer-events-none mb-1">
+                      <img src="/images/arrow.png" alt="箭頭" className="w-12 h-12 drop-shadow-md" />
                   </div>
                 )}
 
@@ -270,12 +287,11 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                 />
                 
                 <div className="absolute bottom-[28%] left-1/2 transform -translate-x-1/2 z-20 flex flex-col items-center justify-center w-[60%] pointer-events-none">
-                  
                   <div className="absolute bottom-full mb-3 w-max flex justify-center z-[60]">
                     {isAiCover && coverStatus === 'generating' && <div className="bg-yellow-400 text-gray-800 px-4 py-1.5 text-sm rounded-full font-bold shadow-md animate-pulse border border-yellow-500">⏳ 畫家繪製中...</div>}
                     {isAiCover && coverStatus === 'done' && !cover && <div className="bg-green-500 text-white px-4 py-1.5 text-sm rounded-full font-bold shadow-[0_0_15px_#22c55e] animate-bounce border border-green-400">✨ 繪製完成！點擊入內領取</div>}
                     {isFaceSwap && faceswapStatus === 'generating' && <div className="bg-blue-400 text-gray-800 px-4 py-1.5 text-sm rounded-full font-bold shadow-md animate-pulse border border-blue-500">⏳ 融合五官中...</div>}
-                    {isFaceSwap && faceswapStatus === 'done' && !swapped && <div className="bg-green-500 text-white px-4 py-1.5 text-sm rounded-full font-bold shadow-[0_0_15px_#22c55e] animate-bounce border border-green-400">✨ 寫真完成！點擊入內領取</div>}
+                    {isFaceSwap && faceswapStatus === 'done' && !swapped && <div className="bg-green-500 text-white px-4 py-1.5 text-sm rounded-full font-bold shadow-[0_0_15px_#22c55e] animate-bounce border border-green-400">✨ 封面完成！點擊入內領取</div>}
                     {isFaceSwap && mainSong && !mainSong.hasFace && faceswapStatus === 'idle' && <div className="bg-gray-800 text-white px-4 py-1.5 text-sm rounded-full font-bold shadow-md border border-gray-600">🔒 此歌曲無人臉可替換</div>}
                   </div>
 
@@ -319,7 +335,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
             >
                {lightbox.type === 'ticket' && (
                  <div className="relative flex flex-col items-center drop-shadow-2xl">
-                   <div className="transform scale-125 md:scale-150 origin-center relative mt-6">
+                   <div className="transform scale-120 md:scale-150 origin-center relative mt-6">
                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-yellow-100/90 backdrop-blur-[2px] shadow-sm z-[100] rotate-2 border border-yellow-300"></div>
                      <TicketCard captureImg={lightbox.data.image} moodResult={lightbox.data.mood} size="normal" />
                    </div>
@@ -329,7 +345,7 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
                {lightbox.type === 'cover' && (
                  <div className="bg-white p-4 pb-14 rounded-sm shadow-2xl border border-gray-200 flex flex-col relative w-[800px]">
                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-40 h-10 bg-[#fca5a5]/90 backdrop-blur-[2px] shadow-sm z-[100] rotate-[-2deg] border border-red-300"></div>
-                   <img src={lightbox.data.image} className="w-full aspect-[1024/720] object-cover border border-gray-300 mt-2" draggable="false" />
+                   <img src={lightbox.data.image} className="w-full aspect-[16/9] object-cover border border-gray-300 mt-2" draggable="false" />
                    <div className="absolute bottom-4 w-full left-0 text-center"><h3 className="text-3xl font-bold text-gray-800 tracking-widest font-serif">{lightbox.data.title}</h3></div>
                  </div>
                )}
@@ -356,20 +372,12 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
 
                {lightbox.type === 'recording' && (
                  <div className="bg-[#FDFBF7] p-10 rounded-sm shadow-2xl border border-[#C0B8A3] w-[500px] flex flex-col items-center relative pt-12">
-                   
                    <div className="my-6 relative transform scale-125 origin-center">
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-green-100/90 backdrop-blur-[2px] shadow-sm z-[100] rotate-[1deg] border border-green-300 z-50"></div>
+                      <div className="absolute -top-[50px] left-1/2 -translate-x-1/2 w-32 h-10 bg-green-100/90 backdrop-blur-[2px] shadow-sm z-[100] rotate-[1deg] border border-green-300 z-50"></div>
                       <CassetteUI title={lightbox.data.title} color="bg-gray-800" size="normal" />
                    </div>
-
-                   <h2 className="text-2xl font-bold text-gray-800 text-center border-b-2 border-gray-300 pb-4 mb-2 tracking-widest font-serif w-full mt-6">
-                     專屬演唱錄音
-                   </h2>
-
-                   <CustomAudioPlayer 
-                     src={lightbox.data.audioUrl} 
-                     onPlayCallback={() => { if (onPauseMusic) onPauseMusic(); }} 
-                   />
+                   <h2 className="text-2xl font-bold text-gray-800 text-center border-b-2 border-gray-300 pb-4 mb-2 tracking-widest font-serif w-full mt-6">專屬演唱錄音</h2>
+                   <CustomAudioPlayer src={lightbox.data.audioUrl} onPlayCallback={() => { if (onPauseMusic) onPauseMusic(); }} />
                  </div>
                )}
 
@@ -383,6 +391,6 @@ const TrainPage = ({ onSelectMode, onBack, ticket, cover, coverStatus, swapped, 
 
     </div>
   );
-};
+});
 
 export default TrainPage;

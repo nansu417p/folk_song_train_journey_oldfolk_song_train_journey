@@ -172,7 +172,7 @@ const AiCoverGame_zimage = ({ song, onHome, coverStatus, generatedCoverImg, onSt
                     ✨ 開始繪製封面
                   </button>
                   <button onClick={() => onSetMockCover(`/images/${song.audioFileName.replace('.mp3', '.jpg')}`)} className="w-full py-3 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all text-sm tracking-widest border border-gray-400">
-                    載入預設圖片 (測試用)
+                    載入預設圖片
                   </button>
                 </div>
               </div>

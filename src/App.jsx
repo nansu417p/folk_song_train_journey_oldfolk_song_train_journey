@@ -283,12 +283,12 @@ function App() {
           <div className="w-full max-w-4xl bg-[#FDFBF7] p-12 md:p-16 rounded-xl shadow-2xl border-4 border-[#C0B8A3] flex flex-col items-center text-center">
              <h2 className="text-4xl md:text-5xl font-bold text-gray-800 tracking-widest mb-8 border-b-2 border-red-500 pb-4">歡迎搭乘時光列車</h2>
              <div className="text-xl md:text-2xl text-gray-700 leading-loose tracking-wider mb-12 text-left space-y-6">
-                <p>這是一趟通往 1970 年代的特別班車。</p>
+                <p>這是一趟通往 1980 年代台灣的特別班車。</p>
                 <p>在這裡，沒有現代的喧囂，只有一把吉他、純粹的嗓音，以及那些曾經陪伴我們度過青春歲月的熟悉旋律。</p>
-                <p>接下來，請您跟著車廂內的指示，用手勢捕捉一首屬於您的民歌，並透過 AI 與聲音互動，將這份記憶重新擦亮，封裝成永恆的回憶。</p>
+                <p>接下來，請您跟著車廂內的指示，用手勢捕捉一首屬於您的民歌，並與歌聲互動，將這份記憶重新擦亮，封裝成永恆的回憶。</p>
              </div>
              <button onClick={handleEnterTrain} className="px-12 py-5 bg-red-600 text-white rounded-lg text-xl font-bold tracking-widest border-2 border-red-800 shadow-[6px_6px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#7f1d1d] transition-all">
-               🎫 剪票上車 ↓
+               點擊上車 ↓
              </button>
           </div>
         </div>
@@ -308,7 +308,7 @@ function App() {
                     <img src="/images/cassette.png" alt="Cassette" className="w-12 h-8 object-contain drop-shadow-sm" />
                 </div>
                 <div className="flex flex-col mr-8 min-w-[120px]">
-                  <span className="text-xs text-gray-500 font-bold tracking-widest">NOW PLAYING</span>
+                  <span className="text-xs text-gray-500 font-bold tracking-widest"></span>
                   <span className="text-lg text-gray-800 font-bold tracking-wider truncate max-w-[150px]">
                     {mainSong ? mainSong.title : (currentTrackName === 'bg_music.mp3' ? '經典民歌放送中' : (currentTrackName || '').replace('.mp3', ''))}
                   </span>
@@ -320,8 +320,8 @@ function App() {
 
              {/* ★ 新增：隱藏式的下拉音量條 */}
              {/* 透過 -translate-y-full 與 opacity-0 隱藏，hover 時滑出 */}
-             <div className="absolute top-[80%] left-4 right-4 bg-[#EAEAEA] border-x-2 border-b-2 border-gray-400 rounded-b-lg p-4 shadow-[4px_4px_0_#9ca3af] -z-10 transition-all duration-300 opacity-0 -translate-y-[20px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto flex flex-col items-center">
-                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-2 w-full text-left">VOLUME</span>
+             <div className="absolute top-[90%] left-4 right-4 bg-[#EAEAEA] border-x-2 border-b-2 border-gray-400 rounded-b-lg p-4 shadow-[4px_4px_0_#9ca3af] -z-10 transition-all duration-300 opacity-0 -translate-y-[20px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto flex flex-col items-center">
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-2 w-full text-left"></span>
                 <input 
                   type="range" 
                   min="0" max="1" step="0.05" 
@@ -400,7 +400,7 @@ function App() {
           {activeMode === 'capsule' && (
              <div className="w-full h-full flex flex-col items-center justify-center relative">
                <UnifiedBackButton onClick={handleLeaveGame} />
-               <button onClick={handleEndJourney} className="absolute top-6 right-8 z-50 px-8 py-3 bg-gray-800 text-white font-bold text-lg rounded-lg border-2 border-black shadow-[4px_4px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#4b5563] transition-all tracking-widest flex items-center">
+               <button onClick={handleEndJourney} className="absolute top-6 right-8 z-50 px-8 py-3 bg-red-500 text-white font-bold text-lg rounded-lg border-2 border-black shadow-[4px_4px_0_#4b5563] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#4b5563] transition-all tracking-widest flex items-center">
                  結束旅程 →
                </button>
 
