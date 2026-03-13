@@ -85,7 +85,6 @@ function App() {
   const [currentTrackName, setCurrentTrackName] = useState('bg_music.mp3');
   const [isPlaying, setIsPlaying] = useState(false);
   
-  // ★ 新增：全域音量狀態 (0 到 1)
   const [volume, setVolume] = useState(0.5);
 
   const homeSectionRef = useRef(null);
@@ -98,7 +97,7 @@ function App() {
     if (!globalAudioRef.current) {
       globalAudioRef.current = new Audio(`/music/bg_music.mp3`);
       globalAudioRef.current.loop = true;
-      globalAudioRef.current.volume = volume; // 初始音量
+      globalAudioRef.current.volume = volume;
     }
     return () => {
       if (globalAudioRef.current) {
@@ -108,7 +107,6 @@ function App() {
     };
   }, []);
 
-  // ★ 監聽音量改變，並更新 Audio 物件
   useEffect(() => {
     if (globalAudioRef.current) {
       globalAudioRef.current.volume = volume;
@@ -204,17 +202,21 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/sdapi/v1/txt2img`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'ngrok-skip-browser-warning': 'true' // Ngrok 通關密語
+        },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`API 無回應`);
+      if (!response.ok) throw new Error(`API 無回應或網路錯誤 (狀態碼: ${response.status})`);
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         setGeneratedCoverImg(`data:image/png;base64,${data.images[0]}`);
         setCoverStatus('done');
       }
     } catch (error) {
-      alert(`繪製錯誤: ${error.message}`);
+      console.error(error);
+      alert(`繪製錯誤: ${error.message}\n請確認伺服器與 Ngrok 已正常開啟。`);
       setCoverStatus('idle');
     }
   };
@@ -225,15 +227,19 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/reactor/image`, { 
         method: "POST", 
-        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "69420" }, 
+        headers: { 
+          "Content-Type": "application/json", 
+          "ngrok-skip-browser-warning": "true" // Ngrok 通關密語
+        }, 
         body: JSON.stringify(payload) 
       });
-      if (!response.ok) throw new Error(`換臉 API 錯誤`);
+      if (!response.ok) throw new Error(`換臉 API 錯誤 (狀態碼: ${response.status})`);
       const data = await response.json();
       setGeneratedSwappedImg(`data:image/png;base64,${data.image}`);
       setFaceswapStatus('done');
     } catch (error) {
-      alert(`融合失敗: ${error.message}`);
+      console.error(error);
+      alert(`融合失敗: ${error.message}\n請確認伺服器與 Ngrok 已正常開啟。`);
       setFaceswapStatus('idle');
     }
   };
@@ -288,7 +294,7 @@ function App() {
                 <p>接下來，請您跟著車廂內的指示，用手勢捕捉一首屬於您的民歌，並與歌聲互動，將這份記憶重新擦亮，封裝成永恆的回憶。</p>
              </div>
              <button onClick={handleEnterTrain} className="px-12 py-5 bg-red-600 text-white rounded-lg text-xl font-bold tracking-widest border-2 border-red-800 shadow-[6px_6px_0_#7f1d1d] hover:translate-y-[2px] hover:shadow-[3px_3px_0_#7f1d1d] transition-all">
-               點擊上車 ↓
+                點擊上車 ↓
              </button>
           </div>
         </div>
@@ -298,11 +304,7 @@ function App() {
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: "url('/train-bg.jpg')" }}></div>
         
         <div className="relative z-20 w-full h-full">
-          
-          {/* ★ 修改：在外部包裹一個 group，用於觸發 hover 展開音量條 */}
           <div className="absolute top-6 right-8 z-50 group">
-             
-             {/* 播放器主體 */}
              <div className="flex items-center bg-[#FDFBF7] px-6 py-3 rounded-lg border-2 border-gray-400 shadow-[4px_4px_0_#9ca3af] relative z-20">
                 <div className="mr-4 flex items-center justify-center">
                     <img src="/images/cassette.png" alt="Cassette" className="w-12 h-8 object-contain drop-shadow-sm" />
@@ -318,8 +320,6 @@ function App() {
                 </button>
              </div>
 
-             {/* ★ 新增：隱藏式的下拉音量條 */}
-             {/* 透過 -translate-y-full 與 opacity-0 隱藏，hover 時滑出 */}
              <div className="absolute top-[90%] left-4 right-4 bg-[#EAEAEA] border-x-2 border-b-2 border-gray-400 rounded-b-lg p-4 shadow-[4px_4px_0_#9ca3af] -z-10 transition-all duration-300 opacity-0 -translate-y-[20px] pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto flex flex-col items-center">
                 <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-2 w-full text-left"></span>
                 <input 
@@ -333,7 +333,6 @@ function App() {
                   }}
                 />
              </div>
-             
           </div>
           
           <TrainPage 
@@ -372,14 +371,36 @@ function App() {
           {activeMode === 'ai-zimage' && (
              <div className="w-full h-full flex flex-col items-center justify-center relative">
                <UnifiedBackButton onClick={handleLeaveGame} />
-               {!mainSong ? <RequireMainSongPrompt /> : <AiCoverGame_zimage song={mainSong} onHome={handleLeaveGame} coverStatus={coverStatus} generatedCoverImg={generatedCoverImg} onStartGenerate={handleStartGenerateCover} onSetMockCover={(url) => { setGeneratedCoverImg(url); setCoverStatus('done'); }} onCoverGenerated={(img) => { setCoverData({ image: img, title: mainSong.title }); setCoverStatus('idle'); handleLeaveGame(); }} />}
+               {!mainSong ? <RequireMainSongPrompt /> : (
+                 <AiCoverGame_zimage 
+                   song={mainSong} 
+                   onHome={handleLeaveGame} 
+                   coverStatus={coverStatus} 
+                   generatedCoverImg={generatedCoverImg} 
+                   onStartGenerate={handleStartGenerateCover} 
+                   onSetMockCover={(url) => { setGeneratedCoverImg(url); setCoverStatus('done'); }} 
+                   onCoverGenerated={(img) => { setCoverData({ image: img, title: mainSong.title }); setCoverStatus('idle'); handleLeaveGame(); }} 
+                 />
+               )}
              </div>
           )}
 
           {activeMode === 'faceswap' && (
             <div className="w-full h-full relative flex flex-col items-center justify-center">
               <UnifiedBackButton onClick={handleLeaveGame} />
-              {!mainSong ? <RequireMainSongPrompt /> : <FaceSwapGame song={mainSong} onHome={handleLeaveGame} faceswapStatus={faceswapStatus} generatedSwappedImg={generatedSwappedImg} onStartGenerate={handleStartFaceSwap} onSetMockSwap={(url) => { setGeneratedSwappedImg(url); setFaceswapStatus('done'); }} onSwapGenerated={(img) => { setSwappedData({ image: img, title: mainSong.title }); setFaceswapStatus('idle'); handleLeaveGame(); }} />}
+              {!mainSong ? <RequireMainSongPrompt /> : (
+                <FaceSwapGame 
+                  song={mainSong} 
+                  onHome={handleLeaveGame} 
+                  faceswapStatus={faceswapStatus} 
+                  generatedSwappedImg={generatedSwappedImg} 
+                  onStartGenerate={handleStartFaceSwap} 
+                  // ★ 核心修復：這裡補上了 generatedCoverImg，傳遞已經做好的 AI 封面或資料庫快取
+                  generatedCoverImg={coverData ? coverData.image : generatedCoverImg} 
+                  onSetMockSwap={(url) => { setGeneratedSwappedImg(url); setFaceswapStatus('done'); }} 
+                  onSwapGenerated={(img) => { setSwappedData({ image: img, title: mainSong.title }); setFaceswapStatus('idle'); handleLeaveGame(); }} 
+                />
+              )}
             </div>
           )}
 

@@ -129,13 +129,15 @@ const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus
     onSelectMode(mode);
   };
 
+  // ★ 修復提示功能：只要開始生成 (Status 不再是 idle)，指標就移往下一站
   const getHintModeId = () => {
     if (!ticket) return 'mood-train';
     if (!mainSong) return 'ar';
-    if (!cover) return 'ai-zimage';
-    if (mainSong && mainSong.hasFace && !swapped) return 'faceswap';
-    if (!lyrics) return 'lyrics';
+    // 只要狀態不是 idle (代表已經點擊過繪製了)，且還沒拿到收藏品，指標就移往下一個
+    if (coverStatus === 'idle' && !cover) return 'ai-zimage';
     if (!recording) return 'sing-along';
+    if (mainSong && mainSong.hasFace && faceswapStatus === 'idle' && !swapped) return 'faceswap';
+    if (!lyrics) return 'lyrics';
     return 'capsule';
   };
   const hintModeId = getHintModeId();
@@ -156,21 +158,24 @@ const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus
         <h3 className="text-gray-500 font-bold tracking-widest text-sm mb-4 bg-[#FDFBF7]/80 px-4 py-1 rounded-full border border-gray-300 backdrop-blur-sm shadow-sm pointer-events-none mt-2">
           — 您的旅程收集品 —
         </h3>
-        {/* ★ 修正 1：加高這裡的容器高度從 140px 到 180px，避免底部被裁切 */}
-        <div className="flex flex-row justify-center items-center gap-8 w-full max-w-6xl h-[140px] pointer-events-auto mt-2">
+
+        {/* ★ 收藏品順序與膠帶重新校正 */}
+        <div className="flex flex-row justify-center items-center gap-8 w-full max-w-6xl h-[180px] pointer-events-auto mt-2">
+            {/* 1. 心情車票 (黃色膠帶) */}
             {ticket && (
               <motion.div 
                 initial={{ opacity: 0, y: -20, rotate: -5 }} animate={{ opacity: 1, y: 0, rotate: -2 }} whileHover={{ rotate: 0, scale: 1.05 }} 
                 onClick={() => setLightbox({ type: 'ticket', data: ticket })}
-                className="cursor-pointer z-50 drop-shadow-md flex items-center justify-center w-[300px] h-[150px]" 
+                className="cursor-pointer z-50 drop-shadow-md flex items-center justify-center w-[280px] h-[140px]" 
               >
-                <div className="relative transform scale-[0.5] origin-center">
+                <div className="relative transform scale-[0.45] origin-center">
                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-yellow-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-2 border border-yellow-200/50"></div>
                    <TicketCard captureImg={ticket.image} moodResult={ticket.mood} size="normal" />
                 </div>
               </motion.div>
             )}
 
+            {/* 2. AI 封面 (紅色膠帶) */}
             {cover && (
               <motion.div 
                 initial={{ opacity: 0, y: -20, rotate: 3 }} animate={{ opacity: 1, y: 0, rotate: 1 }} whileHover={{ rotate: 0, scale: 1.05 }} 
@@ -186,6 +191,21 @@ const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus
               </motion.div>
             )}
 
+            {/* 3. 錄音卡帶 (綠色膠帶) */}
+            {recording && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20, rotate: -2 }} animate={{ opacity: 1, y: 0, rotate: -1 }} whileHover={{ rotate: 0, scale: 1.05 }} 
+                onClick={() => setLightbox({ type: 'recording', data: recording })}
+                className="cursor-pointer z-20 drop-shadow-md w-[120px] flex items-center justify-center"
+              >
+                <div className="relative transform scale-[0.45] origin-center pointer-events-none">
+                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-green-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-1 border border-green-300/50"></div>
+                  <CassetteUI title={recording.title} color="bg-green-700" size="normal" />
+                </div>
+              </motion.div>
+            )}
+
+            {/* 4. 一日歌手封面 (藍色膠帶) */}
             {swapped && (
               <motion.div 
                 initial={{ opacity: 0, y: -20, rotate: -3 }} animate={{ opacity: 1, y: 0, rotate: -1 }} whileHover={{ rotate: 0, scale: 1.05 }} 
@@ -201,6 +221,7 @@ const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus
               </motion.div>
             )}
 
+            {/* 5. 歌詞卡 (黃色膠帶) */}
             {lyrics && (
               <motion.div 
                 initial={{ opacity: 0, y: -20, rotate: 4 }} animate={{ opacity: 1, y: 0, rotate: 2 }} whileHover={{ rotate: 0, scale: 1.05 }} 
@@ -218,24 +239,11 @@ const TrainPage = forwardRef(({ onSelectMode, onBack, ticket, cover, coverStatus
                 </div>
               </motion.div>
             )}
-
-            {recording && (
-              <motion.div 
-                initial={{ opacity: 0, y: -20, rotate: -2 }} animate={{ opacity: 1, y: 0, rotate: -1 }} whileHover={{ rotate: 0, scale: 1.05 }} 
-                onClick={() => setLightbox({ type: 'recording', data: recording })}
-                className="cursor-pointer z-20 drop-shadow-md w-[120px] flex items-center justify-center"
-              >
-                <div className="relative transform scale-[0.45] origin-center pointer-events-none">
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-10 bg-green-100/80 backdrop-blur-[2px] shadow-sm z-30 rotate-1 border border-green-300/50"></div>
-                  <CassetteUI title={recording.title} color="bg-green-700" size="normal" />
-                </div>
-              </motion.div>
-            )}
         </div>
       </div>
       
       <div className="text-center z-10 pointer-events-none mt-auto mb-2 shrink-0">
-        <h2 className="text-5xl font-bold mb-2 text-gray-800 drop-shadow-md tracking-widest">點擊車箱開始旅程</h2>
+        <h2 className="text-5xl font-bold mb-2 text-gray-800 drop-shadow-md tracking-widest">點擊車廂開始旅程</h2>
       </div>
 
       <div className="w-full h-[400px] overflow-hidden relative z-10 shrink-0">
